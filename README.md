@@ -23,10 +23,10 @@ Sistema de agendamiento de servicios de movilidad para personas con discapacidad
 
 - **Frontend**: Next.js 16 + TypeScript + Tailwind CSS
 - **Backend**: Next.js API Routes + Prisma ORM
-- **Base de Datos**: PostgreSQL
-- **Maps API**: Google Maps (Distance Matrix + Directions)
+- **Base de Datos**: SQLite (dev) / PostgreSQL (prod)
+- **Maps API**: Google Maps (opcional)
 - **UI Components**: Radix UI + shadcn/ui
-- **Testing**: Jest + Testing Library
+- **Deployment**: Vercel
 
 ## 🛠️ Instalación
 
@@ -37,24 +37,27 @@ Sistema de agendamiento de servicios de movilidad para personas con discapacidad
 
 2. **Configurar variables de entorno**
    
-   Editar `.env`:
+   Copiar y configurar variables:
+   ```bash
+   cp .env.example .env
+   ```
+   
+   Editar `.env` con tus valores:
    ```env
-   DATABASE_URL="postgresql://username:password@localhost:5432/movilidadreducida?schema=public"
-   GOOGLE_MAPS_API_KEY="your_google_maps_api_key_here"
-   NEXTAUTH_SECRET="your_nextauth_secret_here"
+   DATABASE_URL="file:./dev.db"
+   GOOGLE_MAPS_API_KEY="" # Opcional para desarrollo
+   NEXTAUTH_SECRET="tu-secreto-seguro-aqui"
    NEXTAUTH_URL="http://localhost:3000"
    ```
 
 3. **Configurar base de datos**
    ```bash
-   # Generar cliente Prisma
-   npm run db:generate
+   # Generar cliente Prisma y configurar DB
+   npx prisma generate
+   npx prisma db push
    
-   # Ejecutar migraciones
-   npm run db:migrate
-   
-   # Sembrar datos de ejemplo
-   npm run db:seed
+   # Opcional: Sembrar datos de ejemplo
+   npx tsx scripts/seed_brisk_data.ts
    ```
 
 4. **Ejecutar en desarrollo**
@@ -89,6 +92,24 @@ Sistema de agendamiento de servicios de movilidad para personas con discapacidad
 ```bash
 npm run db:import data/tarifas.xlsx
 ```
+
+## 🚀 Deploy en Vercel
+
+1. **Fork o Clone el repositorio**
+2. **Ir a [vercel.com](https://vercel.com) e importar el proyecto**
+3. **Configurar Variables de Entorno en Vercel:**
+   ```
+   DATABASE_URL=file:./dev.db
+   NEXTAUTH_SECRET=tu-secreto-muy-seguro
+   NEXTAUTH_URL=https://tu-app.vercel.app
+   ```
+4. **Deploy automático** ✅
+
+### Variables de Entorno para Vercel:
+- `DATABASE_URL`: Usar SQLite para simplicidad
+- `NEXTAUTH_SECRET`: Genera un secreto seguro
+- `NEXTAUTH_URL`: URL de tu app en Vercel
+- `GOOGLE_MAPS_API_KEY`: (Opcional) Para funciones de mapas
 
 ---
 
