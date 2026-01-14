@@ -19,10 +19,11 @@ const UpdateCustomerSchema = z.object({
 
 export async function GET(
   request: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params
+  
   try {
-    const { id } = await context.params
     const customer = await db.customer.findUnique({
       where: { id },
       include: {
@@ -61,10 +62,11 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params
+  
   try {
-    const { id } = await context.params
     const body = await request.json()
     const customerData = UpdateCustomerSchema.parse(body)
 
@@ -128,10 +130,11 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params
+  
   try {
-    const { id } = await context.params
     const existingCustomer = await db.customer.findUnique({
       where: { id },
       include: {
@@ -164,7 +167,7 @@ export async function DELETE(
       )
     }
 
-    const deletedCustomer = await db.customer.update({
+    await db.customer.update({
       where: { id },
       data: { 
         isActive: false

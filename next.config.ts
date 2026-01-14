@@ -1,7 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Force cache invalidation for Vercel deployment
+  generateBuildId: async () => {
+    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+  }
 };
 
 export default nextConfig;
