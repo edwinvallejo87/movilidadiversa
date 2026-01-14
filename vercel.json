@@ -4,9 +4,6 @@
       "maxDuration": 30
     }
   },
-  "deploymentProtection": {
-    "enabled": false
-  },
   "crons": [],
   "framework": "nextjs",
   "buildCommand": "rm -rf .next node_modules/.cache && prisma generate && npm run build"
