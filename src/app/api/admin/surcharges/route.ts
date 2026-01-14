@@ -9,8 +9,11 @@ export async function GET() {
         code: 'NOCTURNO',
         name: 'Recargo Nocturno',
         description: 'Recargo para servicios entre 6:00 PM y 6:00 AM',
-        price: 25000,
+        type: 'TIME_BASED',
+        amount: 25000,
+        amountType: 'FIXED',
         isActive: true,
+        conditionJson: '{"timeRanges":[{"start":"18:00","end":"06:00"}]}',
         createdAt: new Date().toISOString()
       },
       {
@@ -18,8 +21,11 @@ export async function GET() {
         code: 'DOMINICAL_FESTIVO',
         name: 'Recargo Dominical/Festivo',
         description: 'Recargo para domingos y días festivos',
-        price: 30000,
+        type: 'DAY_BASED',
+        amount: 30000,
+        amountType: 'FIXED',
         isActive: true,
+        conditionJson: '{"daysOfWeek":[0],"holidays":true}',
         createdAt: new Date().toISOString()
       }
     ]

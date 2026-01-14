@@ -369,8 +369,8 @@ export default function TariffsPage() {
                   </div>
                   <div className="text-sm text-gray-600 space-y-1">
                     <p><strong>Modo:</strong> {tariff.pricingMode === 'FIXED' ? 'Precio Fijo' : 'Por Kilómetro'}</p>
-                    {tariff.fixedPrice && <p><strong>Precio:</strong> ${tariff.fixedPrice.toLocaleString()} COP</p>}
-                    {tariff.pricePerKm && <p><strong>Por Km:</strong> ${tariff.pricePerKm.toLocaleString()} COP/km</p>}
+                    {tariff.fixedPrice && <p><strong>Precio:</strong> ${(tariff.fixedPrice || 0).toLocaleString()} COP</p>}
+                    {tariff.pricePerKm && <p><strong>Por Km:</strong> ${(tariff.pricePerKm || 0).toLocaleString()} COP/km</p>}
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -509,8 +509,8 @@ export default function TariffsPage() {
                     <p><strong>Tipo:</strong> {surcharge.type}</p>
                     <p><strong>Monto:</strong> 
                       {surcharge.amountType === 'PERCENTAGE' 
-                        ? `${surcharge.amount}%` 
-                        : `$${surcharge.amount.toLocaleString()} COP`
+                        ? `${surcharge.amount || 0}%` 
+                        : `$${(surcharge.amount || 0).toLocaleString()} COP`
                       }
                     </p>
                   </div>
