@@ -6,5 +6,5 @@
   },
   "crons": [],
   "framework": "nextjs",
-  "buildCommand": "rm -rf .next node_modules/.cache && npm run build"
+  "buildCommand": "rm -rf .next node_modules/.cache && prisma generate && npm run build"
 }
