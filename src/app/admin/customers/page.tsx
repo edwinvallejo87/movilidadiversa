@@ -101,7 +101,7 @@ export default function CustomersPage() {
     
     try {
       if (editingCustomer) {
-        const response = await fetch(`/api/admin/customers/${editingCustomer.id}`, {
+        const response = await fetch(`/api/admin/customer/${editingCustomer.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(formData)
@@ -160,7 +160,7 @@ export default function CustomersPage() {
     if (!confirm('¿Estás seguro de que quieres desactivar este cliente?')) return
 
     try {
-      const response = await fetch(`/api/admin/customers/${id}`, {
+      const response = await fetch(`/api/admin/customer/${id}`, {
         method: 'DELETE'
       })
 

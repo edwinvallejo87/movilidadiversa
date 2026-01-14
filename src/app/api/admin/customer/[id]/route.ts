@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { z } from 'zod'
-import type { RouteHandler, IdParams } from '@/types/api'
 
 const UpdateCustomerSchema = z.object({
   name: z.string().min(2).optional(),
@@ -18,12 +17,17 @@ const UpdateCustomerSchema = z.object({
   isActive: z.boolean().optional()
 })
 
-export const GET: RouteHandler<IdParams> = async (request, context) => {
-  const { id } = await context.params
-  
+// GET handler for fetching a customer by ID
+export async function GET(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+): Promise<NextResponse> {
   try {
+    const resolvedParams = await context.params
+    const customerId = resolvedParams.id
+    
     const customer = await db.customer.findUnique({
-      where: { id },
+      where: { id: customerId },
       include: {
         appointments: {
           take: 10,
@@ -58,15 +62,20 @@ export const GET: RouteHandler<IdParams> = async (request, context) => {
   }
 }
 
-export const PUT: RouteHandler<IdParams> = async (request, context) => {
-  const { id } = await context.params
-  
+// PUT handler for updating a customer
+export async function PUT(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+): Promise<NextResponse> {
   try {
+    const resolvedParams = await context.params
+    const customerId = resolvedParams.id
+    
     const body = await request.json()
     const customerData = UpdateCustomerSchema.parse(body)
 
     const existingCustomer = await db.customer.findUnique({
-      where: { id }
+      where: { id: customerId }
     })
 
     if (!existingCustomer) {
@@ -81,7 +90,7 @@ export const PUT: RouteHandler<IdParams> = async (request, context) => {
         where: { 
           email: customerData.email,
           isActive: true,
-          id: { not: id }
+          id: { not: customerId }
         }
       })
       
@@ -94,7 +103,7 @@ export const PUT: RouteHandler<IdParams> = async (request, context) => {
     }
 
     const updatedCustomer = await db.customer.update({
-      where: { id },
+      where: { id: customerId },
       data: customerData,
       include: {
         _count: {
@@ -123,12 +132,17 @@ export const PUT: RouteHandler<IdParams> = async (request, context) => {
   }
 }
 
-export const DELETE: RouteHandler<IdParams> = async (request, context) => {
-  const { id } = await context.params
-  
+// DELETE handler for deactivating a customer
+export async function DELETE(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+): Promise<NextResponse> {
   try {
+    const resolvedParams = await context.params
+    const customerId = resolvedParams.id
+    
     const existingCustomer = await db.customer.findUnique({
-      where: { id },
+      where: { id: customerId },
       include: {
         _count: {
           select: {
@@ -147,7 +161,7 @@ export const DELETE: RouteHandler<IdParams> = async (request, context) => {
 
     const activeAppointments = await db.appointment.count({
       where: {
-        customerId: id,
+        customerId: customerId,
         status: { in: ['PENDING', 'CONFIRMED', 'IN_PROGRESS'] }
       }
     })
@@ -160,7 +174,7 @@ export const DELETE: RouteHandler<IdParams> = async (request, context) => {
     }
 
     await db.customer.update({
-      where: { id },
+      where: { id: customerId },
       data: { 
         isActive: false
       }
