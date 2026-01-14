@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { z } from 'zod'
+import type { RouteHandler, IdParams } from '@/types/api'
 
 const UpdateCustomerSchema = z.object({
   name: z.string().min(2).optional(),
@@ -17,11 +18,8 @@ const UpdateCustomerSchema = z.object({
   isActive: z.boolean().optional()
 })
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params
+export const GET: RouteHandler<IdParams> = async (request, context) => {
+  const { id } = await context.params
   
   try {
     const customer = await db.customer.findUnique({
@@ -60,11 +58,8 @@ export async function GET(
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params
+export const PUT: RouteHandler<IdParams> = async (request, context) => {
+  const { id } = await context.params
   
   try {
     const body = await request.json()
@@ -128,11 +123,8 @@ export async function PUT(
   }
 }
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params
+export const DELETE: RouteHandler<IdParams> = async (request, context) => {
+  const { id } = await context.params
   
   try {
     const existingCustomer = await db.customer.findUnique({
