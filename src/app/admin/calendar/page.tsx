@@ -94,7 +94,7 @@ export default function CalendarPage() {
   const loadFormData = async () => {
     try {
       const [customersRes, servicesRes, staffRes, resourcesRes, pricingZonesRes, additionalServicesRes, destinationsRes] = await Promise.all([
-        fetch('/api/admin/customers'),
+        fetch('/api/admin/clients'),
         fetch('/api/admin/services'),
         fetch('/api/admin/staff'),
         fetch('/api/admin/resources'),
