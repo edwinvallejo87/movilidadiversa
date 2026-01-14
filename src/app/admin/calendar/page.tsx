@@ -185,20 +185,28 @@ export default function CalendarPage() {
   }
 
   const eventStyleGetter = (event: AppointmentEvent) => {
-    const backgroundColor = event.serviceColor
-    const opacity = event.status === 'CONFIRMED' ? 1 : 
-                   event.status === 'PENDING' ? 0.7 :
-                   event.status === 'IN_PROGRESS' ? 0.9 : 0.5
+    // Map status to CSS classes for elegant styling
+    const statusClassMap = {
+      'SCHEDULED': 'event-scheduled',
+      'CONFIRMED': 'event-confirmed', 
+      'IN_PROGRESS': 'event-in-progress',
+      'COMPLETED': 'event-completed',
+      'CANCELLED': 'event-cancelled'
+    }
+
+    const statusClass = statusClassMap[event.status as keyof typeof statusClassMap] || 'event-scheduled'
 
     return {
+      className: statusClass,
       style: {
-        backgroundColor,
-        borderRadius: '4px',
-        opacity,
+        border: 'none',
+        borderRadius: '6px',
+        padding: '4px 8px',
+        fontSize: '12px',
+        fontWeight: '600',
         color: 'white',
-        border: '1px solid rgba(255,255,255,0.3)',
-        display: 'block',
-        fontSize: '12px'
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+        textShadow: '0 1px 2px rgba(0, 0, 0, 0.2)'
       }
     }
   }
@@ -542,30 +550,33 @@ export default function CalendarPage() {
         </div>
 
         {/* Leyenda de estados */}
-        <div className="flex space-x-4 mb-4">
-          <div className="flex items-center space-x-2">
-            <div className="w-4 h-4 bg-green-500 rounded"></div>
-            <span className="text-sm">Confirmado</span>
+        <div className="flex flex-wrap gap-4 mb-6">
+          <div className="flex items-center space-x-2 bg-blue-50 px-3 py-2 rounded-lg">
+            <div className="w-3 h-3 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full"></div>
+            <span className="text-sm font-medium text-blue-700">Programado</span>
           </div>
-          <div className="flex items-center space-x-2">
-            <div className="w-4 h-4 bg-yellow-500 opacity-70 rounded"></div>
-            <span className="text-sm">Pendiente</span>
+          <div className="flex items-center space-x-2 bg-green-50 px-3 py-2 rounded-lg">
+            <div className="w-3 h-3 bg-gradient-to-r from-green-500 to-green-600 rounded-full"></div>
+            <span className="text-sm font-medium text-green-700">Confirmado</span>
           </div>
-          <div className="flex items-center space-x-2">
-            <div className="w-4 h-4 bg-blue-500 opacity-90 rounded"></div>
-            <span className="text-sm">En Progreso</span>
+          <div className="flex items-center space-x-2 bg-orange-50 px-3 py-2 rounded-lg">
+            <div className="w-3 h-3 bg-gradient-to-r from-orange-500 to-orange-600 rounded-full"></div>
+            <span className="text-sm font-medium text-orange-700">En Progreso</span>
           </div>
-          <div className="flex items-center space-x-2">
-            <div className="w-4 h-4 bg-gray-500 opacity-50 rounded"></div>
-            <span className="text-sm">Cancelado</span>
+          <div className="flex items-center space-x-2 bg-purple-50 px-3 py-2 rounded-lg">
+            <div className="w-3 h-3 bg-gradient-to-r from-purple-500 to-purple-600 rounded-full"></div>
+            <span className="text-sm font-medium text-purple-700">Completado</span>
+          </div>
+          <div className="flex items-center space-x-2 bg-red-50 px-3 py-2 rounded-lg">
+            <div className="w-3 h-3 bg-gradient-to-r from-red-500 to-red-600 rounded-full"></div>
+            <span className="text-sm font-medium text-red-700">Cancelado</span>
           </div>
         </div>
       </div>
 
       {/* Calendario */}
-      <div className="pro-card" style={{ height: '600px' }}>
-        <div className="card-content">
-          <Calendar
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden" style={{ height: '700px' }}>
+        <Calendar
             localizer={localizer}
             events={events}
             startAccessor="start"
@@ -609,7 +620,6 @@ export default function CalendarPage() {
                 `${moment(start).format('HH:mm')} - ${moment(end).format('HH:mm')}`
             }}
           />
-        </div>
       </div>
 
       {/* Modal de creación de cita */}
