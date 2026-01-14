@@ -60,10 +60,15 @@ export default function StaffPage() {
   const fetchStaff = async () => {
     try {
       const response = await fetch('/api/admin/staff')
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
       const data = await response.json()
-      setStaff(data)
+      setStaff(Array.isArray(data) ? data : [])
     } catch (error) {
-      toast.error('Error al cargar el staff')
+      console.error('Error loading staff:', error)
+      toast.error('Error al cargar el staff - Verifica la configuración de autenticación')
+      setStaff([])
     } finally {
       setLoading(false)
     }

@@ -140,9 +140,12 @@ export default function CalendarPage() {
     try {
       setLoading(true)
       const response = await fetch('/api/appointments?include=all')
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
       const data = await response.json()
       
-      const appointmentEvents: AppointmentEvent[] = data.appointments.map((apt: any) => {
+      const appointmentEvents: AppointmentEvent[] = Array.isArray(data?.appointments) ? data.appointments.map((apt: any) => {
         // Crear título más informativo que muestre la agrupación
         let title = `${apt.service.name} - ${apt.customer.name}`
         if (apt.staff?.name) {
@@ -169,11 +172,13 @@ export default function CalendarPage() {
           originAddress: apt.originAddress || '',
           destinationAddress: apt.destinationAddress || ''
         }
-      })
+      }) : []
       
       setEvents(appointmentEvents)
     } catch (error) {
       console.error('Error loading appointments:', error)
+      toast.error('Error al cargar las citas - Verifica la configuración de autenticación')
+      setEvents([])
     } finally {
       setLoading(false)
     }
@@ -870,18 +875,20 @@ export default function CalendarPage() {
                 </div>
                 
                 <div className="space-y-2">
-                  {currentQuote.breakdown.map((item: any, index: number) => (
+                  {Array.isArray(currentQuote?.breakdown) ? currentQuote.breakdown.map((item: any, index: number) => (
                     <div key={index} className="flex justify-between items-center text-sm">
                       <span className="text-gray-700">
-                        {item.item}
-                        {item.quantity && ` (x${item.quantity})`}
+                        {item?.item || 'Item desconocido'}
+                        {item?.quantity && ` (x${item.quantity})`}
                       </span>
-                      <span className="font-medium">${item.subtotal.toLocaleString()}</span>
+                      <span className="font-medium">${(item?.subtotal || 0).toLocaleString()}</span>
                     </div>
-                  ))}
+                  )) : (
+                    <div className="text-sm text-gray-500">No hay desglose disponible</div>
+                  )}
                   <div className="border-t pt-2 flex justify-between items-center font-semibold">
                     <span>Total</span>
-                    <span className="text-green-600">${currentQuote.totalPrice.toLocaleString()}</span>
+                    <span className="text-green-600">${(currentQuote?.totalPrice || 0).toLocaleString()}</span>
                   </div>
                 </div>
               </div>

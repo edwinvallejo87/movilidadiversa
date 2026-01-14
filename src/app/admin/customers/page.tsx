@@ -61,10 +61,15 @@ export default function CustomersPage() {
       if (search) searchParams.set('search', search)
       
       const response = await fetch(`/api/admin/clients?${searchParams}`)
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
       const data = await response.json()
-      setCustomers(data.customers)
+      setCustomers(Array.isArray(data?.customers) ? data.customers : [])
     } catch (error) {
-      toast.error('Error al cargar los clientes')
+      console.error('Error loading customers:', error)
+      toast.error('Error al cargar los clientes - Verifica la configuración de autenticación')
+      setCustomers([])
     } finally {
       setLoading(false)
     }
