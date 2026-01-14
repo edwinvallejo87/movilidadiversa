@@ -19,11 +19,12 @@ const UpdateCustomerSchema = z.object({
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const customer = await db.customer.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         appointments: {
           take: 10,
@@ -60,14 +61,15 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const body = await request.json()
     const customerData = UpdateCustomerSchema.parse(body)
 
     const existingCustomer = await db.customer.findUnique({
-      where: { id: params.id }
+      where: { id }
     })
 
     if (!existingCustomer) {
@@ -82,7 +84,7 @@ export async function PUT(
         where: { 
           email: customerData.email,
           isActive: true,
-          id: { not: params.id }
+          id: { not: id }
         }
       })
       
@@ -95,7 +97,7 @@ export async function PUT(
     }
 
     const updatedCustomer = await db.customer.update({
-      where: { id: params.id },
+      where: { id },
       data: customerData,
       include: {
         _count: {
@@ -112,7 +114,7 @@ export async function PUT(
     
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Invalid data', details: error.errors },
+        { error: 'Invalid data', details: error.issues },
         { status: 400 }
       )
     }
@@ -126,11 +128,12 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const existingCustomer = await db.customer.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         _count: {
           select: {
@@ -149,7 +152,7 @@ export async function DELETE(
 
     const activeAppointments = await db.appointment.count({
       where: {
-        customerId: params.id,
+        customerId: id,
         status: { in: ['PENDING', 'CONFIRMED', 'IN_PROGRESS'] }
       }
     })
@@ -162,7 +165,7 @@ export async function DELETE(
     }
 
     const deletedCustomer = await db.customer.update({
-      where: { id: params.id },
+      where: { id },
       data: { 
         isActive: false
       }

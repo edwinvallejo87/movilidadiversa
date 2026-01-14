@@ -20,11 +20,12 @@ const UpdateStaffSchema = z.object({
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const staff = await db.staff.findUnique({
-      where: { id: params.id },
+      where: { id: id },
       include: {
         appointments: {
           take: 10,
@@ -68,15 +69,16 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const body = await request.json()
     const staffData = UpdateStaffSchema.parse(body)
 
     // Verificar que el staff existe
     const existingStaff = await db.staff.findUnique({
-      where: { id: params.id }
+      where: { id: id }
     })
 
     if (!existingStaff) {
@@ -92,7 +94,7 @@ export async function PUT(
         where: { 
           licensePlate: staffData.licensePlate,
           type: 'VEHICLE',
-          id: { not: params.id }
+          id: { not: id }
         }
       })
       
@@ -105,7 +107,7 @@ export async function PUT(
     }
 
     const updatedStaff = await db.staff.update({
-      where: { id: params.id },
+      where: { id: id },
       data: staffData,
       include: {
         _count: {
@@ -123,7 +125,7 @@ export async function PUT(
     
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Invalid data', details: error.errors },
+        { error: 'Invalid data', details: error.issues },
         { status: 400 }
       )
     }
@@ -137,12 +139,13 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     // Verificar que el staff existe
     const existingStaff = await db.staff.findUnique({
-      where: { id: params.id },
+      where: { id: id },
       include: {
         _count: {
           select: {
@@ -162,7 +165,7 @@ export async function DELETE(
     // Verificar si tiene citas activas
     const activeAppointments = await db.appointment.count({
       where: {
-        staffId: params.id,
+        staffId: id,
         status: { in: ['PENDING', 'CONFIRMED', 'IN_PROGRESS'] }
       }
     })
@@ -176,7 +179,7 @@ export async function DELETE(
 
     // Soft delete: marcar como inactivo en lugar de eliminar
     const deletedStaff = await db.staff.update({
-      where: { id: params.id },
+      where: { id: id },
       data: { 
         isActive: false,
         status: 'OFFLINE'

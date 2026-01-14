@@ -15,17 +15,17 @@ const UpdateAppointmentSchema = z.object({
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const appointment = await db.appointment.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         service: true,
         customer: true,
         staff: true,
-        fromZone: true,
-        toZone: true
+        resource: true
       }
     })
 
@@ -49,15 +49,16 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const body = await request.json()
     const updateData = UpdateAppointmentSchema.parse(body)
 
     // Verificar que la cita existe
     const existingAppointment = await db.appointment.findUnique({
-      where: { id: params.id }
+      where: { id }
     })
 
     if (!existingAppointment) {
@@ -83,7 +84,7 @@ export async function PATCH(
 
     // Actualizar la cita
     const updatedAppointment = await db.appointment.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         ...updateData,
         actualStartTime: updateData.actualStartTime ? new Date(updateData.actualStartTime) : undefined,
@@ -94,8 +95,7 @@ export async function PATCH(
         service: true,
         customer: true,
         staff: true,
-        fromZone: true,
-        toZone: true
+        resource: true
       }
     })
 
@@ -108,7 +108,7 @@ export async function PATCH(
       return NextResponse.json(
         { 
           error: 'Invalid request data',
-          details: error.errors
+          details: error.issues
         },
         { status: 400 }
       )
@@ -123,12 +123,13 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     // Verificar que la cita existe
     const existingAppointment = await db.appointment.findUnique({
-      where: { id: params.id }
+      where: { id }
     })
 
     if (!existingAppointment) {
@@ -140,7 +141,7 @@ export async function DELETE(
 
     // En lugar de eliminar, cambiar estado a CANCELLED
     const cancelledAppointment = await db.appointment.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         status: 'CANCELLED',
         updatedAt: new Date()
@@ -149,8 +150,7 @@ export async function DELETE(
         service: true,
         customer: true,
         staff: true,
-        fromZone: true,
-        toZone: true
+        resource: true
       }
     })
 

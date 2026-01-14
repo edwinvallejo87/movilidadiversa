@@ -11,11 +11,12 @@ const UpdateServiceSchema = z.object({
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const service = await db.service.findUnique({
-      where: { id: params.id },
+      where: { id: id },
       include: {
         appointments: {
           take: 10,
@@ -24,13 +25,9 @@ export async function GET(
             customer: true
           }
         },
-        tariffRules: {
-          orderBy: { createdAt: 'desc' }
-        },
         _count: {
           select: {
             appointments: true,
-            tariffRules: true
           }
         }
       }
@@ -55,14 +52,15 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const body = await request.json()
     const serviceData = UpdateServiceSchema.parse(body)
 
     const existingService = await db.service.findUnique({
-      where: { id: params.id }
+      where: { id: id }
     })
 
     if (!existingService) {
@@ -76,7 +74,7 @@ export async function PUT(
       const duplicateService = await db.service.findFirst({
         where: { 
           name: serviceData.name,
-          id: { not: params.id },
+          id: { not: id },
           isActive: true
         }
       })
@@ -90,13 +88,12 @@ export async function PUT(
     }
 
     const updatedService = await db.service.update({
-      where: { id: params.id },
+      where: { id: id },
       data: serviceData,
       include: {
         _count: {
           select: {
             appointments: true,
-            tariffRules: true
           }
         }
       }
@@ -108,7 +105,7 @@ export async function PUT(
     
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Invalid data', details: error.errors },
+        { error: 'Invalid data', details: error.issues },
         { status: 400 }
       )
     }
@@ -122,11 +119,12 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const existingService = await db.service.findUnique({
-      where: { id: params.id },
+      where: { id: id },
       include: {
         _count: {
           select: {
@@ -145,7 +143,7 @@ export async function DELETE(
 
     const activeAppointments = await db.appointment.count({
       where: {
-        serviceId: params.id,
+        serviceId: id,
         status: { in: ['PENDING', 'CONFIRMED', 'IN_PROGRESS'] }
       }
     })
@@ -158,7 +156,7 @@ export async function DELETE(
     }
 
     const deletedService = await db.service.update({
-      where: { id: params.id },
+      where: { id: id },
       data: { 
         isActive: false
       }

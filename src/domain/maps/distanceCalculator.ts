@@ -1,5 +1,10 @@
-import { Client } from '@googlemaps/google-maps-services-js'
-import type { Location } from '../pricing/types'
+import { Client, UnitSystem, TravelMode } from '@googlemaps/google-maps-services-js'
+
+export interface Location {
+  lat: number
+  lng: number
+  address?: string
+}
 
 export interface DistanceResult {
   distanceKm: number
@@ -29,8 +34,8 @@ export class DistanceCalculator {
         params: {
           origins: [{ lat: origin.lat, lng: origin.lng }],
           destinations: [{ lat: destination.lat, lng: destination.lng }],
-          units: 'metric',
-          mode: 'driving',
+          units: UnitSystem.metric,
+          mode: TravelMode.driving,
           key: this.apiKey,
         },
       })
@@ -63,7 +68,7 @@ export class DistanceCalculator {
         params: {
           origin: { lat: origin.lat, lng: origin.lng },
           destination: { lat: destination.lat, lng: destination.lng },
-          mode: 'driving',
+          mode: TravelMode.driving,
           key: this.apiKey,
         },
       })
@@ -161,16 +166,18 @@ export class DistanceCalculator {
         params,
       })
 
-      return response.data.results.map(place => ({
-        placeId: place.place_id,
-        name: place.name,
-        address: place.formatted_address,
-        location: {
-          lat: place.geometry.location.lat,
-          lng: place.geometry.location.lng,
-          address: place.formatted_address
-        }
-      }))
+      return response.data.results
+        .filter(place => place.place_id && place.name && place.formatted_address && place.geometry)
+        .map(place => ({
+          placeId: place.place_id!,
+          name: place.name!,
+          address: place.formatted_address!,
+          location: {
+            lat: place.geometry!.location.lat,
+            lng: place.geometry!.location.lng,
+            address: place.formatted_address!
+          }
+        }))
     } catch (error) {
       console.error('Error searching places:', error)
       throw new Error('Error al buscar lugares')

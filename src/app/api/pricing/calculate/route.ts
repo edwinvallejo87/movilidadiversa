@@ -16,16 +16,7 @@ export async function POST(request: NextRequest) {
 
     // 1. Buscar el servicio
     const service = await db.service.findUnique({
-      where: { id: serviceId },
-      include: {
-        tariffRules: {
-          where: { isActive: true },
-          include: {
-            zone: true,
-            distanceTiers: true
-          }
-        }
-      }
+      where: { id: serviceId }
     })
 
     if (!service) {
@@ -39,70 +30,30 @@ export async function POST(request: NextRequest) {
     const originZone = await findZoneByAddress(originAddress)
     const destinationZone = await findZoneByAddress(destinationAddress)
 
-    // 3. Buscar regla de tarifa aplicable
-    let applicableRule = null
+    // 3. Calcular precio basado en servicio base
+    let estimatedPrice = service.basePrice || 15000 // Precio base del servicio
 
-    // Prioridad 1: Regla específica para la zona de origen
-    if (originZone) {
-      applicableRule = service.tariffRules.find(rule => rule.zoneId === originZone.id)
-    }
-
-    // Prioridad 2: Regla específica para la zona de destino
-    if (!applicableRule && destinationZone) {
-      applicableRule = service.tariffRules.find(rule => rule.zoneId === destinationZone.id)
-    }
-
-    // Prioridad 3: Regla general (sin zona específica)
-    if (!applicableRule) {
-      applicableRule = service.tariffRules.find(rule => !rule.zoneId)
-    }
-
-    // 4. Calcular precio según la regla encontrada
-    let estimatedPrice = 15000 // Precio base por defecto
-
-    if (applicableRule) {
-      switch (applicableRule.pricingMode) {
-        case 'FIXED':
-          estimatedPrice = applicableRule.fixedPrice || 15000
-          break
-
-        case 'PER_KM':
-          if (distanceKm && applicableRule.pricePerKm) {
-            estimatedPrice = distanceKm * applicableRule.pricePerKm
-            if (applicableRule.minPrice && estimatedPrice < applicableRule.minPrice) {
-              estimatedPrice = applicableRule.minPrice
-            }
-          }
-          break
-
-        case 'BY_DISTANCE_TIER':
-          if (distanceKm && applicableRule.distanceTiers.length > 0) {
-            const tier = applicableRule.distanceTiers.find(t => 
-              distanceKm >= t.minKm && (!t.maxKm || distanceKm <= t.maxKm)
-            )
-            if (tier) {
-              estimatedPrice = tier.price
-            }
-          }
-          break
-
-        default:
-          // Usar precio fijo como fallback
-          estimatedPrice = applicableRule.fixedPrice || 15000
+    // 4. Ajustar precio por distancia si está disponible
+    if (distanceKm) {
+      // Buscar si hay alguna zona aplicable para ajustar tarifa
+      let zoneRate = 0
+      if (originZone) {
+        zoneRate = originZone.perKmRate || 0
+      } else if (destinationZone) {
+        zoneRate = destinationZone.perKmRate || 0
       }
-    }
-
-    // 5. Aplicar precio mínimo si está definido
-    if (applicableRule?.minPrice && estimatedPrice < applicableRule.minPrice) {
-      estimatedPrice = applicableRule.minPrice
+      
+      if (zoneRate > 0) {
+        estimatedPrice = estimatedPrice + (distanceKm * zoneRate)
+      }
     }
 
     return NextResponse.json({
       estimatedPrice: Math.round(estimatedPrice),
-      appliedRule: {
-        id: applicableRule?.id,
-        pricingMode: applicableRule?.pricingMode,
-        zone: applicableRule?.zone?.name || 'General'
+      service: {
+        id: service.id,
+        name: service.name,
+        basePrice: service.basePrice
       },
       zones: {
         origin: originZone?.name,
@@ -117,7 +68,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { 
           error: 'Parámetros inválidos',
-          details: error.errors
+          details: error.issues
         },
         { status: 400 }
       )
@@ -132,9 +83,7 @@ export async function POST(request: NextRequest) {
 
 // Función auxiliar para detectar zona según dirección
 async function findZoneByAddress(address: string): Promise<any> {
-  const zones = await db.zone.findMany({
-    where: { isActive: true }
-  })
+  const zones = await db.zone.findMany()
 
   // Buscar por nombre de zona en la dirección
   const lowerAddress = address.toLowerCase()

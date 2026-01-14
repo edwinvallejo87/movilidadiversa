@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { 
           error: 'Datos de cita inválidos',
-          details: error.errors
+          details: error.issues
         },
         { status: 400 }
       )

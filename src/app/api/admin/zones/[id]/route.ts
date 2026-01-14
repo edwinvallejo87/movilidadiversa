@@ -4,28 +4,20 @@ import { z } from 'zod'
 
 const UpdateZoneSchema = z.object({
   name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres'),
-  description: z.string().optional(),
-  coordinates: z.string().optional(),
-  baseFare: z.number().min(0, 'La tarifa base debe ser mayor o igual a 0'),
-  perKmRate: z.number().min(0, 'La tarifa por KM debe ser mayor o igual a 0'),
-  isActive: z.boolean()
+  slug: z.string().optional(),
+  isMetro: z.boolean().optional()
 })
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const zone = await db.zone.findUnique({
-      where: { id: params.id },
+      where: { id: id },
       include: {
-        _count: {
-          select: {
-            tariffRules: true,
-            appointmentsFrom: true,
-            appointmentsTo: true
-          }
-        }
+        rates: true
       }
     })
 
@@ -48,15 +40,16 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const body = await request.json()
     const validatedData = UpdateZoneSchema.parse(body)
 
     // Verificar si la zona existe
     const existingZone = await db.zone.findUnique({
-      where: { id: params.id }
+      where: { id: id }
     })
 
     if (!existingZone) {
@@ -71,8 +64,7 @@ export async function PUT(
       const duplicateZone = await db.zone.findFirst({
         where: {
           name: validatedData.name,
-          isActive: true,
-          id: { not: params.id }
+          id: { not: id }
         }
       })
 
@@ -85,7 +77,7 @@ export async function PUT(
     }
 
     const updatedZone = await db.zone.update({
-      where: { id: params.id },
+      where: { id: id },
       data: validatedData
     })
 
@@ -93,7 +85,7 @@ export async function PUT(
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Datos inválidos', details: error.errors },
+        { error: 'Datos inválidos', details: error.issues },
         { status: 400 }
       )
     }
@@ -108,12 +100,13 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     // Verificar si la zona existe
     const existingZone = await db.zone.findUnique({
-      where: { id: params.id }
+      where: { id: id }
     })
 
     if (!existingZone) {
@@ -123,37 +116,28 @@ export async function DELETE(
       )
     }
 
-    // Verificar si la zona tiene citas asociadas
-    const appointmentCount = await db.appointment.count({
+    // Verificar si la zona tiene tarifas asociadas
+    const rateCount = await db.rate.count({
       where: {
-        OR: [
-          { fromZoneId: params.id },
-          { toZoneId: params.id }
-        ]
+        zoneId: id
       }
     })
 
-    if (appointmentCount > 0) {
-      // Si tiene citas, solo desactivar
-      const deactivatedZone = await db.zone.update({
-        where: { id: params.id },
-        data: { isActive: false }
-      })
-
-      return NextResponse.json({
-        message: 'Zona desactivada (tiene citas asociadas)',
-        zone: deactivatedZone
-      })
-    } else {
-      // Si no tiene citas, eliminar completamente
-      await db.zone.delete({
-        where: { id: params.id }
-      })
-
-      return NextResponse.json({
-        message: 'Zona eliminada correctamente'
+    if (rateCount > 0) {
+      // Si tiene tarifas, solo eliminar las tarifas y luego la zona
+      await db.rate.deleteMany({
+        where: { zoneId: id }
       })
     }
+
+    // Eliminar la zona
+    await db.zone.delete({
+      where: { id: id }
+    })
+
+    return NextResponse.json({
+      message: 'Zona eliminada correctamente'
+    })
   } catch (error) {
     console.error('Error deleting zone:', error)
     return NextResponse.json(

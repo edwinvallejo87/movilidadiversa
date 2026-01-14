@@ -255,7 +255,7 @@ export async function POST(request: NextRequest): Promise<Response> {
       return NextResponse.json(
         { 
           error: 'Parámetros inválidos',
-          details: error.errors
+          details: error.issues
         },
         { status: 400 }
       )
