@@ -60,7 +60,7 @@ export default function CustomersPage() {
       const searchParams = new URLSearchParams()
       if (search) searchParams.set('search', search)
       
-      const response = await fetch(`/api/admin/customers?${searchParams}`)
+      const response = await fetch(`/api/admin/clients?${searchParams}`)
       const data = await response.json()
       setCustomers(data.customers)
     } catch (error) {
@@ -101,7 +101,7 @@ export default function CustomersPage() {
     
     try {
       if (editingCustomer) {
-        const response = await fetch(`/api/admin/customer/${editingCustomer.id}`, {
+        const response = await fetch(`/api/admin/client/${editingCustomer.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(formData)
@@ -114,7 +114,7 @@ export default function CustomersPage() {
 
         toast.success('Cliente actualizado correctamente')
       } else {
-        const response = await fetch('/api/admin/customers', {
+        const response = await fetch('/api/admin/clients', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(formData)
@@ -160,7 +160,7 @@ export default function CustomersPage() {
     if (!confirm('¿Estás seguro de que quieres desactivar este cliente?')) return
 
     try {
-      const response = await fetch(`/api/admin/customer/${id}`, {
+      const response = await fetch(`/api/admin/client/${id}`, {
         method: 'DELETE'
       })
 
