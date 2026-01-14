@@ -10,18 +10,39 @@ const CreateZoneSchema = z.object({
 
 export async function GET() {
   try {
-    const zones = await db.zone.findMany({
-      include: {
+    // Mock zones data for now
+    const zones = [
+      {
+        id: 'medellin',
+        name: 'Medellín',
+        slug: 'medellin',
+        description: 'Área metropolitana de Medellín',
+        isActive: true,
         _count: {
-          select: {
-            rates: true
-          }
+          rates: 8
         }
       },
-      orderBy: {
-        name: 'asc'
+      {
+        id: 'itagui',
+        name: 'Itagüí', 
+        slug: 'itagui',
+        description: 'Municipio de Itagüí',
+        isActive: true,
+        _count: {
+          rates: 4
+        }
+      },
+      {
+        id: 'envigado',
+        name: 'Envigado',
+        slug: 'envigado', 
+        description: 'Municipio de Envigado',
+        isActive: true,
+        _count: {
+          rates: 4
+        }
       }
-    })
+    ]
 
     return NextResponse.json(zones)
   } catch (error) {

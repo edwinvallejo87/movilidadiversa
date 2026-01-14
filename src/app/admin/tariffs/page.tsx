@@ -93,12 +93,32 @@ export default function TariffsPage() {
         fetch('/api/admin/services')
       ])
 
-      if (tariffsRes.ok) setTariffs(await tariffsRes.json())
-      if (surchargesRes.ok) setSurcharges(await surchargesRes.json())
-      if (zonesRes.ok) setZones(await zonesRes.json())
-      if (servicesRes.ok) setServices(await servicesRes.json())
+      if (tariffsRes.ok) {
+        const tariffsData = await tariffsRes.json()
+        setTariffs(Array.isArray(tariffsData) ? tariffsData : [])
+      }
+      
+      if (surchargesRes.ok) {
+        const surchargesData = await surchargesRes.json()
+        setSurcharges(Array.isArray(surchargesData) ? surchargesData : [])
+      }
+      
+      if (zonesRes.ok) {
+        const zonesData = await zonesRes.json()
+        setZones(Array.isArray(zonesData) ? zonesData : [])
+      }
+      
+      if (servicesRes.ok) {
+        const servicesData = await servicesRes.json()
+        setServices(Array.isArray(servicesData?.services) ? servicesData.services : [])
+      }
     } catch (error) {
       console.error('Error fetching data:', error)
+      // Set empty arrays as fallbacks
+      setTariffs([])
+      setSurcharges([])
+      setZones([])
+      setServices([])
     }
   }
 
@@ -268,9 +288,9 @@ export default function TariffsPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="general">General (todas las zonas)</SelectItem>
-                      {zones.map(zone => (
+                      {Array.isArray(zones) ? zones.map(zone => (
                         <SelectItem key={zone.id} value={zone.id}>{zone.name}</SelectItem>
-                      ))}
+                      )) : []}
                     </SelectContent>
                   </Select>
                 </div>
@@ -282,9 +302,9 @@ export default function TariffsPage() {
                       <SelectValue placeholder="Seleccionar servicio" />
                     </SelectTrigger>
                     <SelectContent>
-                      {services.map(service => (
+                      {Array.isArray(services) ? services.map(service => (
                         <SelectItem key={service.id} value={service.id}>{service.name}</SelectItem>
-                      ))}
+                      )) : []}
                     </SelectContent>
                   </Select>
                 </div>
@@ -335,7 +355,7 @@ export default function TariffsPage() {
         </div>
 
         <div className="grid gap-4">
-          {tariffs.map((tariff) => (
+          {Array.isArray(tariffs) ? tariffs.map((tariff) => (
             <Card key={tariff.id} className="p-6">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
@@ -363,7 +383,7 @@ export default function TariffsPage() {
                 </div>
               </div>
             </Card>
-          ))}
+          )) : []}
         </div>
       </div>
 
@@ -475,7 +495,7 @@ export default function TariffsPage() {
         </div>
 
         <div className="grid gap-4">
-          {surcharges.map((surcharge) => (
+          {Array.isArray(surcharges) ? surcharges.map((surcharge) => (
             <Card key={surcharge.id} className="p-6">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
@@ -505,7 +525,7 @@ export default function TariffsPage() {
                 </div>
               </div>
             </Card>
-          ))}
+          )) : []}
         </div>
       </div>
     </div>
