@@ -41,10 +41,15 @@ export default function ServicesPage() {
   const fetchServices = async () => {
     try {
       const response = await fetch('/api/admin/services')
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
       const data = await response.json()
-      setServices(data)
+      setServices(Array.isArray(data?.services) ? data.services : [])
     } catch (error) {
+      console.error('Error loading services:', error)
       toast.error('Error al cargar los servicios')
+      setServices([])
     } finally {
       setLoading(false)
     }
@@ -254,7 +259,7 @@ export default function ServicesPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        {services.filter(s => s.isActive).map((service) => (
+        {Array.isArray(services) ? services.filter(s => s?.isActive).map((service) => (
           <div key={service.id} className="bg-white rounded-lg shadow-md border border-gray-200 p-6 hover:shadow-lg transition-shadow">
             <div className="mb-4">
               <div className="flex items-center justify-between">
@@ -304,10 +309,10 @@ export default function ServicesPage() {
               </div>
             </div>
           </div>
-        ))}
+        )) : []}
       </div>
 
-      {services.filter(s => !s.isActive).length > 0 && (
+      {Array.isArray(services) && services.filter(s => !s?.isActive).length > 0 && (
         <>
           <h2 className="text-xl font-semibold mb-4 text-gray-900">Servicios Desactivados</h2>
           <div className="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden">
@@ -322,7 +327,7 @@ export default function ServicesPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {services.filter(s => !s.isActive).map((service) => (
+                  {Array.isArray(services) ? services.filter(s => !s?.isActive).map((service) => (
                     <tr key={service.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">
                         <div className="flex items-center space-x-3">
@@ -355,14 +360,14 @@ export default function ServicesPage() {
                         </button>
                       </td>
                     </tr>
-                  ))}
+                  )) : []}
                 </tbody>
               </table>
             </div>
         </>
       )}
 
-      {services.length === 0 && (
+      {Array.isArray(services) && services.length === 0 && (
         <div className="text-center py-8">
           <p className="text-gray-500">No hay servicios configurados</p>
         </div>
