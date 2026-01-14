@@ -4,5 +4,7 @@
       "maxDuration": 30
     }
   },
-  "crons": []
+  "crons": [],
+  "framework": "nextjs",
+  "buildCommand": "rm -rf .next node_modules/.cache && npm run build"
 }
