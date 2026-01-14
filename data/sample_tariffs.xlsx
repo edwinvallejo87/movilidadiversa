@@ -1,0 +1,12 @@
+This is a placeholder for the sample Excel file. In a real implementation, you would create an Excel file with columns:
+- servicio (Service name)
+- origen (Origin zone)
+- destino (Destination zone)
+- tipo_ruta (Route type)
+- modo_precio (Pricing mode: fijo, por_km, tier)
+- precio_fijo (Fixed price)
+- precio_por_km (Price per km)
+- precio_minimo (Minimum price)
+- min_km (Minimum km for tier)
+- max_km (Maximum km for tier)
+- precio_tier (Price for tier)

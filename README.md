@@ -1,36 +1,95 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Movilidad Diversa - Sistema de Agendamiento
 
-## Getting Started
+Sistema de agendamiento de servicios de movilidad para personas con discapacidad con pricing dinámico completamente configurable desde el panel administrativo.
 
-First, run the development server:
+## 🚀 Características Principales
+
+- **Pricing Dinámico Configurable**: Tarifas que se pueden modificar sin tocar código
+- **Múltiples Modos de Pricing**: 
+  - Precio fijo por ruta
+  - Precio por kilómetro con mínimo
+  - Precio por tramos de distancia
+- **Recargos Configurables**: 
+  - Nocturno, festivos/domingos
+  - Silla robótica, pisos adicionales
+  - Tiempo de espera, silla de ruedas
+- **Gestión de Zonas**: Medellín, municipios, destinos especiales
+- **Portal de Reservas**: Cotización en tiempo real y reserva inmediata
+- **Panel Administrativo**: CRUD completo para todas las entidades de pricing
+- **Importación Excel**: Carga masiva de tarifas desde archivos Excel
+- **Integración Google Maps**: Cálculo automático de distancias y rutas
+
+## 🏗️ Stack Tecnológico
+
+- **Frontend**: Next.js 16 + TypeScript + Tailwind CSS
+- **Backend**: Next.js API Routes + Prisma ORM
+- **Base de Datos**: PostgreSQL
+- **Maps API**: Google Maps (Distance Matrix + Directions)
+- **UI Components**: Radix UI + shadcn/ui
+- **Testing**: Jest + Testing Library
+
+## 🛠️ Instalación
+
+1. **Instalar dependencias**
+   ```bash
+   npm install
+   ```
+
+2. **Configurar variables de entorno**
+   
+   Editar `.env`:
+   ```env
+   DATABASE_URL="postgresql://username:password@localhost:5432/movilidadreducida?schema=public"
+   GOOGLE_MAPS_API_KEY="your_google_maps_api_key_here"
+   NEXTAUTH_SECRET="your_nextauth_secret_here"
+   NEXTAUTH_URL="http://localhost:3000"
+   ```
+
+3. **Configurar base de datos**
+   ```bash
+   # Generar cliente Prisma
+   npm run db:generate
+   
+   # Ejecutar migraciones
+   npm run db:migrate
+   
+   # Sembrar datos de ejemplo
+   npm run db:seed
+   ```
+
+4. **Ejecutar en desarrollo**
+   ```bash
+   npm run dev
+   ```
+
+   La aplicación estará disponible en `http://localhost:3000`
+
+## 🎯 Uso del Sistema
+
+### Portal Público
+- Visitar `http://localhost:3000`
+- Reservar servicios con cotización en tiempo real
+
+### Panel Administrativo
+- Visitar `http://localhost:3000/admin`
+- Gestionar servicios, zonas, tarifas y recargos
+
+## 🚀 Scripts Disponibles
+
+| Script | Descripción |
+|--------|-------------|
+| `npm run dev` | Desarrollo local |
+| `npm run build` | Build producción |
+| `npm run test` | Ejecutar tests |
+| `npm run db:seed` | Sembrar datos ejemplo |
+| `npm run db:import` | Importar desde Excel |
+
+## 📥 Importación Excel
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run db:import data/tarifas.xlsx
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**Desarrollado para mejorar la movilidad inclusiva en Colombia** 🇨🇴

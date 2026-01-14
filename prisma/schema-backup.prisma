@@ -1,0 +1,397 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Zones for geographic pricing
+model Zone {
+  id        String   @id @default(cuid())
+  name      String   // "MEDELLIN", "BELLO-ITAGUI-ENVIGADO", etc.
+  slug      String   @unique
+  isMetro   Boolean  @default(true) // If it's metropolitan area
+  rates     Rate[]
+  createdAt DateTime @default(now())
+
+  @@map("zones")
+}
+
+// Base rates by zone  
+model Rate {
+  id            String         @id @default(cuid())
+  zoneId        String
+  zone          Zone           @relation(fields: [zoneId], references: [id])
+  
+  // Service type
+  tripType      TripType       // SENCILLO or DOBLE
+  equipmentType EquipmentType  // RAMPA or ROBOTICA_PLEGABLE
+  
+  // Trip context
+  originType    OriginType?    // DESDE_MEDELLIN or MISMO_MUNICIPIO
+  distanceRange DistanceRange? // Only for Medellín: HASTA_3KM, DE_3_A_10KM, MAS_10KM
+  
+  // Price in COP
+  price         Int
+  
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@map("rates")
+}
+
+// Additional services
+model AdditionalService {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  name        String
+  price       Int
+  priceType   PriceType // FIJO, POR_HORA, POR_UNIDAD
+  description String?
+
+  @@map("additional_services")
+}
+
+// Surcharges
+model Surcharge {
+  id          String  @id @default(cuid())
+  code        String  @unique // NOCTURNO, DOMINICAL_FESTIVO
+  name        String
+  price       Int
+  description String?
+
+  @@map("surcharges")
+}
+
+// Out of city destinations (special rates)
+model OutOfCityDestination {
+  id            String        @id @default(cuid())
+  name          String        // "Aeropuerto JMC", "Rionegro", "La Ceja"
+  tripType      TripType
+  equipmentType EquipmentType
+  originType    OriginType?
+  price         Int
+
+  @@map("out_of_city_destinations")
+}
+
+// General pricing configuration
+model PricingConfig {
+  id                String @id @default(cuid())
+  pricePerKm        Int    @default(8500)  // For out of city
+  roboticSurcharge  Int    @default(40000) // Robotic wheelchair surcharge out of city
+
+  @@map("pricing_config")
+}
+
+// Legacy service model (keep for compatibility)
+model Service {
+  id               String        @id @default(cuid())
+  name             String        @unique
+  description      String?
+  durationMinutes  Int
+  color            String        @default("#3B82F6")
+  requiresVehicle  Boolean       @default(true)
+  isActive         Boolean       @default(true)
+  
+  // Pricing fields
+  basePrice        Float?        // Base price for the service
+  category         String?       // SENCILLO, DOBLE, ROBOTICA_PLEGABLE, etc.
+  
+  // Distance range fields
+  minDistanceKm    Float?        // Minimum distance for this service
+  maxDistanceKm    Float?        // Maximum distance for this service
+  
+  // Floor range fields (for building services)
+  minFloor         Int?          // Minimum floor
+  maxFloor         Int?          // Maximum floor
+  
+  // Service characteristics
+  isHourly         Boolean       @default(false) // If service is charged hourly
+  
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  tariffRules      TariffRule[]
+  appointments     Appointment[]
+
+  @@map("services")
+}
+
+// Enums
+enum TripType {
+  SENCILLO  // One way
+  DOBLE     // Round trip
+}
+
+enum EquipmentType {
+  RAMPA              // Vehicle with ramp
+  ROBOTICA_PLEGABLE  // Robotic or foldable wheelchair
+}
+
+enum OriginType {
+  DESDE_MEDELLIN    // Trip from Medellín to other municipality
+  MISMO_MUNICIPIO   // Trip within same municipality
+}
+
+enum DistanceRange {
+  HASTA_3KM     // ≤ 3 km
+  DE_3_A_10KM   // > 3 km and ≤ 10 km
+  MAS_10KM      // > 10 km
+}
+
+enum PriceType {
+  FIJO       // Fixed price
+  POR_HORA   // Multiplied by hours
+  POR_UNIDAD // Multiplied by quantity (e.g., floors)
+}
+
+model Zone {
+  id           String    @id @default(cuid())
+  name         String    @unique
+  description  String?
+  coordinates  String?   // Polygon coordinates for the zone
+  baseFare     Float     @default(0)
+  perKmRate    Float     @default(0)
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  tariffRules        TariffRule[]
+  appointmentsFrom   Appointment[] @relation("FromZone")
+  appointmentsTo     Appointment[] @relation("ToZone")
+
+  @@map("zones")
+}
+
+
+model TariffRule {
+  id           String      @id @default(cuid())
+  zoneId       String?
+  serviceId    String
+  pricingMode  String      // FIXED, PER_KM, BY_DISTANCE_TIER
+  fixedPrice   Float?
+  pricePerKm   Float?
+  minPrice     Float?
+  isActive     Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  zone          Zone?          @relation(fields: [zoneId], references: [id])
+  service       Service        @relation(fields: [serviceId], references: [id])
+  distanceTiers DistanceTier[]
+
+  @@map("tariff_rules")
+}
+
+model DistanceTier {
+  id           String     @id @default(cuid())
+  tariffRuleId String
+  minKm        Float
+  maxKm        Float?
+  price        Float
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  tariffRule TariffRule @relation(fields: [tariffRuleId], references: [id], onDelete: Cascade)
+
+  @@map("distance_tiers")
+}
+
+model SurchargeRule {
+  id            String        @id @default(cuid())
+  name          String
+  type          String        // NIGHT, SUNDAY_OR_HOLIDAY, ROBOTIC_CHAIR, etc.
+  amountType    String        // FIXED, PER_UNIT, PERCENTAGE
+  amount        Float
+  unitLabel     String?
+  conditionJson String?       // JSON as TEXT
+  isActive      Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@map("surcharge_rules")
+}
+
+model Holiday {
+  id        String   @id @default(cuid())
+  name      String
+  date      DateTime
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([date])
+  @@map("holidays")
+}
+
+// Staff Management (Brisk-style)
+model Staff {
+  id           String   @id @default(cuid())
+  name         String
+  type         String   // DRIVER, VEHICLE, ASSISTANT
+  status       String   @default("AVAILABLE") // AVAILABLE, BUSY, OFFLINE, MAINTENANCE
+  phone        String?
+  email        String?
+  color        String   @default("#3B82F6") // Color for calendar identification
+  
+  // Vehicle specific fields
+  licensePlate String?
+  capacity     Int?
+  isWheelchairAccessible Boolean @default(false)
+  
+  // Driver specific fields
+  licenseNumber String?
+  
+  // Availability
+  workDays     String   @default("1,2,3,4,5") // JSON: [1,2,3,4,5] = Mon-Fri
+  workStartTime String  @default("07:00")      // HH:MM format
+  workEndTime   String  @default("19:00")      // HH:MM format
+  
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  appointments     Appointment[] @relation("StaffMember")
+  unavailability   StaffUnavailability[]
+  availability     StaffAvailability[]
+
+  @@map("staff")
+}
+
+model StaffUnavailability {
+  id        String   @id @default(cuid())
+  staffId   String
+  startTime DateTime
+  endTime   DateTime
+  reason    String?
+  createdAt DateTime @default(now())
+
+  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@map("staff_unavailability")
+}
+
+model StaffAvailability {
+  id        String   @id @default(cuid())
+  staffId   String
+  dayOfWeek Int      // 0=Sunday, 1=Monday, etc.
+  startTime String   // "09:00"
+  endTime   String   // "18:00"
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@map("staff_availability")
+}
+
+// Resources/Equipment management
+model Resource {
+  id           String   @id @default(cuid())
+  name         String   // "Vehicle 1", "Chair 3", "Room A"
+  description  String?
+  type         String   @default("VEHICLE") // VEHICLE, EQUIPMENT, ROOM
+  color        String   @default("#10B981")
+  capacity     Int?     // Max people/items this resource can handle
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  appointments Appointment[] @relation("ResourceUsed")
+
+  @@map("resources")
+}
+
+// Enhanced Customer model
+model Customer {
+  id                 String   @id @default(cuid())
+  name               String
+  email              String?  @unique
+  phone              String
+  document           String?
+  
+  // Additional info
+  emergencyContact   String?
+  medicalNotes       String?
+  mobilityNeeds      String?  // JSON: ["wheelchair", "walker"]
+  preferredLanguage  String   @default("es")
+  
+  // Default address
+  defaultAddress     String?
+  defaultLat         Float?
+  defaultLng         Float?
+  
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  appointments Appointment[]
+
+  @@map("customers")
+}
+
+// Enhanced Appointment model (Brisk-style)
+model Appointment {
+  id                    String            @id @default(cuid())
+  serviceId             String
+  customerId            String
+  staffId               String?           // Assigned staff member
+  resourceId            String?           // Assigned resource/vehicle
+  fromZoneId            String?
+  toZoneId              String?
+  
+  // Location details
+  originAddress         String
+  originLat             Float
+  originLng             Float
+  destinationAddress    String
+  destinationLat        Float
+  destinationLng        Float
+  
+  // Scheduling
+  scheduledAt           DateTime
+  estimatedDuration     Int
+  actualStartTime       DateTime?
+  actualEndTime         DateTime?
+  
+  // Pricing
+  distanceKm            Float
+  pricingSnapshot       String            // JSON as TEXT
+  totalAmount           Float
+  
+  // Status and notes
+  status                String            @default("PENDING") // PENDING, CONFIRMED, etc.
+  notes                 String?
+  internalNotes         String?           // Staff notes
+  
+  // Customer satisfaction
+  rating                Int?              // 1-5 stars
+  feedback              String?
+  
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  service         Service   @relation(fields: [serviceId], references: [id])
+  customer        Customer  @relation(fields: [customerId], references: [id])
+  staff           Staff?    @relation("StaffMember", fields: [staffId], references: [id])
+  resource        Resource? @relation("ResourceUsed", fields: [resourceId], references: [id])
+  fromZone        Zone?     @relation("FromZone", fields: [fromZoneId], references: [id])
+  toZone          Zone?     @relation("ToZone", fields: [toZoneId], references: [id])
+
+  @@map("appointments")
+}
+
+// System settings
+model Setting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}

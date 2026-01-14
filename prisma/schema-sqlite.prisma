@@ -1,0 +1,311 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum ZoneType {
+  CITY
+  MUNICIPALITY
+  OUTSIDE
+}
+
+enum RouteType {
+  INTRA_ZONE
+  MEDELLIN_TO_MUNICIPIO
+  DESTINATION_SPECIAL
+  OUTSIDE_GENERIC
+}
+
+enum PricingMode {
+  FIXED
+  PER_KM
+  BY_DISTANCE_TIER
+}
+
+enum SurchargeType {
+  NIGHT
+  SUNDAY_OR_HOLIDAY
+  ROBOTIC_CHAIR
+  FLOOR_OVER_3
+  WAITING_HOUR
+  WHEELCHAIR_HOUR
+  SPECIAL_LOCATION
+  RUSH_HOUR
+}
+
+enum AmountType {
+  FIXED
+  PER_UNIT
+  PERCENTAGE
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum StaffType {
+  DRIVER
+  VEHICLE
+  ASSISTANT
+}
+
+enum StaffStatus {
+  AVAILABLE
+  BUSY
+  OFFLINE
+  MAINTENANCE
+}
+
+model Service {
+  id               String        @id @default(cuid())
+  name             String        @unique
+  description      String?
+  durationMinutes  Int
+  color            String        @default("#3B82F6") // For calendar display
+  requiresVehicle  Boolean       @default(true)
+  isActive         Boolean       @default(true)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  tariffRules      TariffRule[]
+  appointments     Appointment[]
+
+  @@map("services")
+}
+
+model Zone {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  type        String    // ZoneType as string for SQLite
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  originRoutes       RouteRule[] @relation("OriginZone")
+  destinationRoutes  RouteRule[] @relation("DestinationZone")
+  originAppointments Appointment[] @relation("OriginZone")
+  destinationAppointments Appointment[] @relation("DestinationZone")
+
+  @@map("zones")
+}
+
+model RouteRule {
+  id                 String     @id @default(cuid())
+  name               String
+  originZoneId       String?
+  destinationZoneId  String?
+  routeType          String     // RouteType as string for SQLite
+  priority           Int        @default(0)
+  isActive           Boolean    @default(true)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  originZone      Zone?         @relation("OriginZone", fields: [originZoneId], references: [id])
+  destinationZone Zone?         @relation("DestinationZone", fields: [destinationZoneId], references: [id])
+  tariffRules     TariffRule[]
+
+  @@map("route_rules")
+}
+
+model TariffRule {
+  id           String      @id @default(cuid())
+  routeRuleId  String
+  serviceId    String
+  pricingMode  String      // PricingMode as string for SQLite
+  fixedPrice   Real?
+  pricePerKm   Real?
+  minPrice     Real?
+  isActive     Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  routeRule     RouteRule      @relation(fields: [routeRuleId], references: [id], onDelete: Cascade)
+  service       Service        @relation(fields: [serviceId], references: [id])
+  distanceTiers DistanceTier[]
+
+  @@unique([routeRuleId, serviceId])
+  @@map("tariff_rules")
+}
+
+model DistanceTier {
+  id           String     @id @default(cuid())
+  tariffRuleId String
+  minKm        Real
+  maxKm        Real?
+  price        Real
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  tariffRule TariffRule @relation(fields: [tariffRuleId], references: [id], onDelete: Cascade)
+
+  @@map("distance_tiers")
+}
+
+model SurchargeRule {
+  id            String        @id @default(cuid())
+  name          String
+  type          String        // SurchargeType as string for SQLite
+  amountType    String        // AmountType as string for SQLite
+  amount        Real
+  unitLabel     String?
+  conditionJson String?       // JSON as TEXT for SQLite
+  isActive      Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@map("surcharge_rules")
+}
+
+model Holiday {
+  id        String   @id @default(cuid())
+  name      String
+  date      DateTime
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([date])
+  @@map("holidays")
+}
+
+// NEW: Staff Management (Brisk-style)
+model Staff {
+  id           String   @id @default(cuid())
+  name         String
+  type         String   // StaffType: DRIVER, VEHICLE, ASSISTANT
+  status       String   @default("AVAILABLE") // StaffStatus
+  phone        String?
+  email        String?
+  
+  // Vehicle specific fields
+  licensePlate String?
+  capacity     Int?
+  isWheelchairAccessible Boolean @default(false)
+  
+  // Driver specific fields
+  licenseNumber String?
+  
+  // Availability
+  workDays     String   @default("1,2,3,4,5") // JSON array as string: weekdays
+  workStartTime String  @default("07:00")      // HH:MM format
+  workEndTime   String  @default("19:00")      // HH:MM format
+  
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  appointments     Appointment[] @relation("StaffMember")
+  unavailability   StaffUnavailability[]
+
+  @@map("staff")
+}
+
+model StaffUnavailability {
+  id        String   @id @default(cuid())
+  staffId   String
+  startTime DateTime
+  endTime   DateTime
+  reason    String?
+  createdAt DateTime @default(now())
+
+  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@map("staff_unavailability")
+}
+
+// Enhanced Customer model
+model Customer {
+  id                 String   @id @default(cuid())
+  name               String
+  email              String?  @unique
+  phone              String
+  document           String?
+  
+  // Additional info for better service
+  emergencyContact   String?
+  medicalNotes       String?
+  mobilityNeeds      String?  // JSON string: wheelchair, walker, etc.
+  preferredLanguage  String   @default("es")
+  
+  // Address info
+  defaultAddress     String?
+  defaultLat         Real?
+  defaultLng         Real?
+  
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  appointments Appointment[]
+
+  @@map("customers")
+}
+
+// Enhanced Appointment model (Brisk-style)
+model Appointment {
+  id                    String            @id @default(cuid())
+  serviceId             String
+  customerId            String
+  staffId               String?           // Assigned staff member
+  originZoneId          String?
+  destinationZoneId     String?
+  
+  // Location details
+  originAddress         String
+  originLat             Real
+  originLng             Real
+  destinationAddress    String
+  destinationLat        Real
+  destinationLng        Real
+  
+  // Scheduling
+  scheduledAt           DateTime
+  estimatedDuration     Int
+  actualStartTime       DateTime?
+  actualEndTime         DateTime?
+  
+  // Pricing
+  distanceKm            Real
+  pricingSnapshot       String            // JSON as TEXT for SQLite
+  totalAmount           Real
+  
+  // Status and notes
+  status                String            @default("PENDING") // AppointmentStatus as string
+  notes                 String?
+  internalNotes         String?           // Staff notes
+  
+  // Customer satisfaction
+  rating                Int?              // 1-5 stars
+  feedback              String?
+  
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  service         Service   @relation(fields: [serviceId], references: [id])
+  customer        Customer  @relation(fields: [customerId], references: [id])
+  staff           Staff?    @relation("StaffMember", fields: [staffId], references: [id])
+  originZone      Zone?     @relation("OriginZone", fields: [originZoneId], references: [id])
+  destinationZone Zone?     @relation("DestinationZone", fields: [destinationZoneId], references: [id])
+
+  @@map("appointments")
+}
+
+// System settings
+model Setting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
