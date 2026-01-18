@@ -21,18 +21,8 @@ interface Zone {
   }
 }
 
-interface OutOfCityDestination {
-  id: string
-  name: string
-  tripType: string
-  equipmentType: string
-  originType: string | null
-  price: number
-}
-
 export default function ZonesPage() {
   const [zones, setZones] = useState<Zone[]>([])
-  const [outOfCityDestinations, setOutOfCityDestinations] = useState<OutOfCityDestination[]>([])
   const [loading, setLoading] = useState(true)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [editingZone, setEditingZone] = useState<Zone | null>(null)
@@ -45,20 +35,10 @@ export default function ZonesPage() {
 
   const fetchZones = async () => {
     try {
-      const [zonesRes, outOfCityRes] = await Promise.all([
-        fetch('/api/admin/zones'),
-        fetch('/api/admin/out-of-city-destinations')
-      ])
-
-      if (zonesRes.ok) {
-        const data = await zonesRes.json()
-        setZones(Array.isArray(data) ? data : [])
-      }
-
-      if (outOfCityRes.ok) {
-        const data = await outOfCityRes.json()
-        setOutOfCityDestinations(Array.isArray(data) ? data : [])
-      }
+      const response = await fetch('/api/admin/zones')
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      const data = await response.json()
+      setZones(Array.isArray(data) ? data : [])
     } catch (error) {
       console.error('Error loading zones:', error)
       toast.error('Error al cargar las zonas')
@@ -170,8 +150,9 @@ export default function ZonesPage() {
     return <div className="flex justify-center items-center h-64">Cargando...</div>
   }
 
-  // Filter metro zones (all zones in db are metro, out-of-city are in separate table)
+  // Separate metro zones and out-of-city
   const metroZones = zones.filter(z => z.isMetro)
+  const outOfCityZones = zones.filter(z => !z.isMetro)
 
   return (
     <div>
@@ -319,53 +300,60 @@ export default function ZonesPage() {
         </div>
       </div>
 
-      {/* Out of City Destinations */}
+      {/* Out of City Zones */}
       <div>
         <h2 className="text-xs font-semibold text-gray-500 uppercase mb-3 flex items-center gap-2">
           <MapPin className="w-3.5 h-3.5" />
-          Fuera de la Ciudad ({outOfCityDestinations.length} tarifas)
+          Fuera de la Ciudad
         </h2>
         <div className="bg-white border border-gray-100 rounded overflow-hidden">
           <table className="w-full text-xs">
             <thead className="bg-gray-50/50 border-b border-gray-100">
               <tr>
-                <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Destino</th>
-                <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Tipo Viaje</th>
-                <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Equipo</th>
-                <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Origen</th>
-                <th className="px-3 py-2 text-right text-[10px] font-medium text-gray-500 uppercase">Precio</th>
+                <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Nombre</th>
+                <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Identificador</th>
+                <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Tarifas</th>
+                <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {outOfCityDestinations.map((dest) => (
-                <tr key={dest.id} className="hover:bg-gray-50/50 transition-colors">
+              {outOfCityZones.map((zone) => (
+                <tr key={zone.id} className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-2">
                       <MapPin className="w-3.5 h-3.5 text-orange-500" />
-                      <span className="font-medium text-gray-900">{dest.name}</span>
+                      <span className="font-medium text-gray-900">{zone.name}</span>
                     </div>
                   </td>
                   <td className="px-3 py-2.5">
-                    <Badge variant={dest.tripType === 'DOBLE' ? 'default' : 'outline'} className="text-[10px]">
-                      {dest.tripType === 'DOBLE' ? 'Ida y vuelta' : 'Solo ida'}
+                    <code className="text-[10px] bg-gray-100 px-1.5 py-0.5 rounded">{zone.slug}</code>
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <Badge variant="outline" className="text-[10px]">
+                      {zone._count?.rates || 0} tarifas
                     </Badge>
                   </td>
-                  <td className="px-3 py-2.5 text-gray-600">
-                    {dest.equipmentType === 'ROBOTICA_PLEGABLE' ? 'Silla Robótica' : 'Rampa'}
-                  </td>
-                  <td className="px-3 py-2.5 text-gray-600">
-                    {dest.originType === 'DESDE_MEDELLIN' ? 'Desde Medellín' :
-                     dest.originType === 'MISMA_CIUDAD' ? 'Mismo municipio' : '-'}
-                  </td>
-                  <td className="px-3 py-2.5 text-right font-medium text-gray-900">
-                    ${dest.price.toLocaleString()}
+                  <td className="px-3 py-2.5">
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => handleEdit(zone)}>
+                        <Edit className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDelete(zone.id)}
+                        disabled={(zone._count?.rates ?? 0) > 0}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
-              {outOfCityDestinations.length === 0 && (
+              {outOfCityZones.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-3 py-4 text-center text-gray-500">
-                    No hay destinos fuera de la ciudad
+                  <td colSpan={4} className="px-3 py-4 text-center text-gray-500">
+                    No hay zonas fuera de la ciudad
                   </td>
                 </tr>
               )}
