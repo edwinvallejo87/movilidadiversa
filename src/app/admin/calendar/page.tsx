@@ -28,6 +28,7 @@ interface AppointmentEvent extends Event {
   equipmentType: string
   customerName: string
   staffName?: string
+  staffColor?: string
   totalAmount: number
   originAddress: string
   destinationAddress: string
@@ -266,6 +267,7 @@ export default function CalendarPage() {
           equipmentType,
           customerName: apt.customer.name,
           staffName: apt.staff?.name || 'Sin asignar',
+          staffColor: apt.staff?.color || '#3B82F6',
           totalAmount: apt.totalAmount,
           originAddress: apt.originAddress || '',
           destinationAddress: apt.destinationAddress || ''
@@ -283,26 +285,24 @@ export default function CalendarPage() {
   }
 
   const eventStyleGetter = (event: AppointmentEvent) => {
-    // Map status to CSS classes for elegant styling
-    const statusClassMap = {
-      'SCHEDULED': 'event-scheduled',
-      'CONFIRMED': 'event-confirmed',
-      'IN_PROGRESS': 'event-in-progress',
-      'COMPLETED': 'event-completed',
-      'CANCELLED': 'event-cancelled'
-    }
+    // Use staff color for the event background
+    const staffColor = event.staffColor || '#3B82F6'
 
-    const statusClass = statusClassMap[event.status as keyof typeof statusClassMap] || 'event-scheduled'
+    // Adjust opacity based on status
+    let opacity = 1
+    if (event.status === 'CANCELLED') opacity = 0.4
+    if (event.status === 'COMPLETED') opacity = 0.7
 
     return {
-      className: statusClass,
       style: {
+        backgroundColor: staffColor,
         border: 'none',
         borderRadius: '3px',
         padding: '2px 6px',
         fontSize: '11px',
         fontWeight: '500',
-        color: 'white'
+        color: 'white',
+        opacity
       }
     }
   }
