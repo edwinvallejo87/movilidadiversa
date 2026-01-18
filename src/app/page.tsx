@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import {
   Car,
   CheckCircle2,
@@ -24,14 +25,18 @@ export default function HomePage() {
       <nav className="bg-white border-b border-gray-100 sticky top-0 z-50">
         <div className="max-w-5xl mx-auto px-4">
           <div className="flex items-center justify-between h-14">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gray-900 rounded-lg flex items-center justify-center">
-                <Accessibility className="w-4 h-4 text-white" />
-              </div>
+            <Link href="/" className="flex items-center gap-2">
+              <Image
+                src="/logo-movilidad-diversa-601-YNq9g7O3JECXj96E.jpeg"
+                alt="Movilidad Diversa"
+                width={36}
+                height={36}
+                className="rounded-lg"
+              />
               <span className="text-sm font-semibold text-gray-900">
                 Movilidad Diversa
               </span>
-            </div>
+            </Link>
             <div className="flex items-center gap-2">
               <Link href="/booking">
                 <Button size="sm">
@@ -248,9 +253,13 @@ export default function HomePage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
             <div>
               <div className="flex items-center gap-2 mb-3">
-                <div className="w-7 h-7 bg-gray-800 rounded-lg flex items-center justify-center">
-                  <Accessibility className="w-3.5 h-3.5 text-gray-400" />
-                </div>
+                <Image
+                  src="/logo-movilidad-diversa-601-YNq9g7O3JECXj96E.jpeg"
+                  alt="Movilidad Diversa"
+                  width={28}
+                  height={28}
+                  className="rounded-md"
+                />
                 <span className="text-xs font-medium text-gray-300">Movilidad Diversa</span>
               </div>
               <p className="text-[11px] text-gray-500 leading-relaxed">

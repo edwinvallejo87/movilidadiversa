@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -198,9 +199,13 @@ export default function BookingPage() {
           <div className="max-w-lg mx-auto px-4">
             <div className="flex items-center justify-between h-14">
               <Link href="/" className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-gray-900 rounded-lg flex items-center justify-center">
-                  <Accessibility className="w-4 h-4 text-white" />
-                </div>
+                <Image
+                  src="/logo-movilidad-diversa-601-YNq9g7O3JECXj96E.jpeg"
+                  alt="Movilidad Diversa"
+                  width={32}
+                  height={32}
+                  className="rounded-lg"
+                />
                 <span className="text-sm font-semibold text-gray-900">Movilidad Diversa</span>
               </Link>
             </div>
@@ -286,14 +291,14 @@ export default function BookingPage() {
         <div className="flex items-center justify-between mb-8">
           {['service', 'route', 'datetime', 'contact', 'confirm'].map((s, i) => (
             <div key={s} className="flex items-center">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium ${
+              <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium ${
                 step === s ? 'bg-gray-900 text-white' :
                 ['service', 'route', 'datetime', 'contact', 'confirm'].indexOf(step) > i ? 'bg-gray-900 text-white' :
                 'bg-gray-100 text-gray-400'
               }`}>
                 {i + 1}
               </div>
-              {i < 4 && <div className={`w-8 h-0.5 ${['service', 'route', 'datetime', 'contact', 'confirm'].indexOf(step) > i ? 'bg-gray-900' : 'bg-gray-100'}`} />}
+              {i < 4 && <div className={`w-4 sm:w-8 h-0.5 ${['service', 'route', 'datetime', 'contact', 'confirm'].indexOf(step) > i ? 'bg-gray-900' : 'bg-gray-100'}`} />}
             </div>
           ))}
         </div>
@@ -304,61 +309,61 @@ export default function BookingPage() {
             <h1 className="text-lg font-semibold text-gray-900 mb-1">Tipo de servicio</h1>
             <p className="text-xs text-gray-500 mb-6">Selecciona el equipo y tipo de viaje</p>
 
-            <div className="space-y-4 mb-6">
+            <div className="space-y-5 mb-6">
               <div>
-                <Label className="text-xs text-gray-500 mb-2 block">Tipo de equipo</Label>
+                <Label className="text-sm text-gray-500 mb-3 block">Tipo de equipo</Label>
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     onClick={() => setFormData({ ...formData, equipmentType: 'RAMPA' })}
-                    className={`p-4 rounded-lg border text-left transition-all ${
+                    className={`p-5 rounded-lg border text-left transition-all min-h-[100px] ${
                       formData.equipmentType === 'RAMPA'
-                        ? 'border-gray-900 bg-gray-50'
-                        : 'border-gray-200 hover:border-gray-300'
+                        ? 'border-gray-900 bg-gray-50 ring-1 ring-gray-900'
+                        : 'border-gray-200 hover:border-gray-300 active:bg-gray-50'
                     }`}
                   >
-                    <Car className={`w-5 h-5 mb-2 ${formData.equipmentType === 'RAMPA' ? 'text-gray-900' : 'text-gray-400'}`} />
+                    <Car className={`w-6 h-6 mb-2 ${formData.equipmentType === 'RAMPA' ? 'text-gray-900' : 'text-gray-400'}`} />
                     <p className="text-sm font-medium text-gray-900">Rampa</p>
-                    <p className="text-[10px] text-gray-500">Vehículo adaptado</p>
+                    <p className="text-xs text-gray-500">Vehículo adaptado</p>
                   </button>
                   <button
                     onClick={() => setFormData({ ...formData, equipmentType: 'ROBOTICA_PLEGABLE' })}
-                    className={`p-4 rounded-lg border text-left transition-all ${
+                    className={`p-5 rounded-lg border text-left transition-all min-h-[100px] ${
                       formData.equipmentType === 'ROBOTICA_PLEGABLE'
-                        ? 'border-gray-900 bg-gray-50'
-                        : 'border-gray-200 hover:border-gray-300'
+                        ? 'border-gray-900 bg-gray-50 ring-1 ring-gray-900'
+                        : 'border-gray-200 hover:border-gray-300 active:bg-gray-50'
                     }`}
                   >
-                    <Accessibility className={`w-5 h-5 mb-2 ${formData.equipmentType === 'ROBOTICA_PLEGABLE' ? 'text-gray-900' : 'text-gray-400'}`} />
+                    <Accessibility className={`w-6 h-6 mb-2 ${formData.equipmentType === 'ROBOTICA_PLEGABLE' ? 'text-gray-900' : 'text-gray-400'}`} />
                     <p className="text-sm font-medium text-gray-900">Silla Robótica</p>
-                    <p className="text-[10px] text-gray-500">Para escaleras</p>
+                    <p className="text-xs text-gray-500">Para escaleras</p>
                   </button>
                 </div>
               </div>
 
               <div>
-                <Label className="text-xs text-gray-500 mb-2 block">Tipo de viaje</Label>
+                <Label className="text-sm text-gray-500 mb-3 block">Tipo de viaje</Label>
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     onClick={() => setFormData({ ...formData, tripType: 'SENCILLO' })}
-                    className={`p-4 rounded-lg border text-left transition-all ${
+                    className={`p-5 rounded-lg border text-left transition-all min-h-[80px] ${
                       formData.tripType === 'SENCILLO'
-                        ? 'border-gray-900 bg-gray-50'
-                        : 'border-gray-200 hover:border-gray-300'
+                        ? 'border-gray-900 bg-gray-50 ring-1 ring-gray-900'
+                        : 'border-gray-200 hover:border-gray-300 active:bg-gray-50'
                     }`}
                   >
                     <p className="text-sm font-medium text-gray-900">Solo ida</p>
-                    <p className="text-[10px] text-gray-500">Un solo trayecto</p>
+                    <p className="text-xs text-gray-500">Un solo trayecto</p>
                   </button>
                   <button
                     onClick={() => setFormData({ ...formData, tripType: 'DOBLE' })}
-                    className={`p-4 rounded-lg border text-left transition-all ${
+                    className={`p-5 rounded-lg border text-left transition-all min-h-[80px] ${
                       formData.tripType === 'DOBLE'
-                        ? 'border-gray-900 bg-gray-50'
-                        : 'border-gray-200 hover:border-gray-300'
+                        ? 'border-gray-900 bg-gray-50 ring-1 ring-gray-900'
+                        : 'border-gray-200 hover:border-gray-300 active:bg-gray-50'
                     }`}
                   >
                     <p className="text-sm font-medium text-gray-900">Ida y vuelta</p>
-                    <p className="text-[10px] text-gray-500">Incluye regreso</p>
+                    <p className="text-xs text-gray-500">Incluye regreso</p>
                   </button>
                 </div>
               </div>
@@ -370,32 +375,30 @@ export default function BookingPage() {
         {step === 'route' && (
           <div>
             <h1 className="text-lg font-semibold text-gray-900 mb-1">Ruta</h1>
-            <p className="text-xs text-gray-500 mb-6">Ingresa las direcciones de origen y destino</p>
+            <p className="text-sm text-gray-500 mb-6">Ingresa las direcciones de origen y destino</p>
 
-            <div className="space-y-4 mb-6">
+            <div className="space-y-5 mb-6">
               <div>
-                <Label htmlFor="origin" className="text-xs text-gray-500 mb-1.5 flex items-center gap-1">
-                  <MapPin className="w-3 h-3" /> Dirección de origen
+                <Label htmlFor="origin" className="text-sm text-gray-500 mb-2 flex items-center gap-1.5">
+                  <MapPin className="w-4 h-4" /> Dirección de origen
                 </Label>
                 <Input
                   id="origin"
                   value={formData.originAddress}
                   onChange={(e) => setFormData({ ...formData, originAddress: e.target.value })}
                   placeholder="Ej: Calle 50 #45-30, El Poblado, Medellín"
-                  className="text-sm"
                 />
               </div>
 
               <div>
-                <Label htmlFor="destination" className="text-xs text-gray-500 mb-1.5 flex items-center gap-1">
-                  <MapPin className="w-3 h-3" /> Dirección de destino
+                <Label htmlFor="destination" className="text-sm text-gray-500 mb-2 flex items-center gap-1.5">
+                  <MapPin className="w-4 h-4" /> Dirección de destino
                 </Label>
                 <Input
                   id="destination"
                   value={formData.destinationAddress}
                   onChange={(e) => setFormData({ ...formData, destinationAddress: e.target.value })}
                   placeholder="Ej: Carrera 70 #10-25, Laureles, Medellín"
-                  className="text-sm"
                 />
               </div>
             </div>
@@ -413,12 +416,12 @@ export default function BookingPage() {
         {step === 'datetime' && (
           <div>
             <h1 className="text-lg font-semibold text-gray-900 mb-1">Fecha y hora</h1>
-            <p className="text-xs text-gray-500 mb-6">Selecciona cuándo necesitas el servicio</p>
+            <p className="text-sm text-gray-500 mb-6">Selecciona cuándo necesitas el servicio</p>
 
-            <div className="space-y-4 mb-6">
+            <div className="space-y-5 mb-6">
               <div>
-                <Label htmlFor="date" className="text-xs text-gray-500 mb-1.5 flex items-center gap-1">
-                  <Calendar className="w-3 h-3" /> Fecha
+                <Label htmlFor="date" className="text-sm text-gray-500 mb-2 flex items-center gap-1.5">
+                  <Calendar className="w-4 h-4" /> Fecha
                 </Label>
                 <Input
                   id="date"
@@ -426,20 +429,18 @@ export default function BookingPage() {
                   min={getMinDate()}
                   value={formData.date}
                   onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  className="text-sm"
                 />
               </div>
 
               <div>
-                <Label htmlFor="time" className="text-xs text-gray-500 mb-1.5 flex items-center gap-1">
-                  <Clock className="w-3 h-3" /> Hora
+                <Label htmlFor="time" className="text-sm text-gray-500 mb-2 flex items-center gap-1.5">
+                  <Clock className="w-4 h-4" /> Hora
                 </Label>
                 <Input
                   id="time"
                   type="time"
                   value={formData.time}
                   onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-                  className="text-sm"
                 />
               </div>
             </div>
@@ -458,25 +459,24 @@ export default function BookingPage() {
         {step === 'contact' && (
           <div>
             <h1 className="text-lg font-semibold text-gray-900 mb-1">Tus datos</h1>
-            <p className="text-xs text-gray-500 mb-6">Información de contacto para la reserva</p>
+            <p className="text-sm text-gray-500 mb-6">Información de contacto para la reserva</p>
 
-            <div className="space-y-4 mb-6">
+            <div className="space-y-5 mb-6">
               <div>
-                <Label htmlFor="name" className="text-xs text-gray-500 mb-1.5 flex items-center gap-1">
-                  <User className="w-3 h-3" /> Nombre completo
+                <Label htmlFor="name" className="text-sm text-gray-500 mb-2 flex items-center gap-1.5">
+                  <User className="w-4 h-4" /> Nombre completo
                 </Label>
                 <Input
                   id="name"
                   value={formData.customerName}
                   onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
                   placeholder="Tu nombre"
-                  className="text-sm"
                 />
               </div>
 
               <div>
-                <Label htmlFor="phone" className="text-xs text-gray-500 mb-1.5 flex items-center gap-1">
-                  <Phone className="w-3 h-3" /> Teléfono
+                <Label htmlFor="phone" className="text-sm text-gray-500 mb-2 flex items-center gap-1.5">
+                  <Phone className="w-4 h-4" /> Teléfono
                 </Label>
                 <Input
                   id="phone"
@@ -484,13 +484,12 @@ export default function BookingPage() {
                   value={formData.customerPhone}
                   onChange={(e) => setFormData({ ...formData, customerPhone: e.target.value })}
                   placeholder="300 123 4567"
-                  className="text-sm"
                 />
               </div>
 
               <div>
-                <Label htmlFor="email" className="text-xs text-gray-500 mb-1.5 flex items-center gap-1">
-                  <Mail className="w-3 h-3" /> Email (opcional)
+                <Label htmlFor="email" className="text-sm text-gray-500 mb-2 flex items-center gap-1.5">
+                  <Mail className="w-4 h-4" /> Email (opcional)
                 </Label>
                 <Input
                   id="email"
@@ -498,19 +497,17 @@ export default function BookingPage() {
                   value={formData.customerEmail}
                   onChange={(e) => setFormData({ ...formData, customerEmail: e.target.value })}
                   placeholder="tu@email.com"
-                  className="text-sm"
                 />
               </div>
 
               <div>
-                <Label htmlFor="notes" className="text-xs text-gray-500 mb-1.5">Notas adicionales (opcional)</Label>
+                <Label htmlFor="notes" className="text-sm text-gray-500 mb-2">Notas adicionales (opcional)</Label>
                 <Textarea
                   id="notes"
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                   placeholder="Información adicional sobre tus necesidades..."
-                  rows={2}
-                  className="text-sm"
+                  rows={3}
                 />
               </div>
             </div>

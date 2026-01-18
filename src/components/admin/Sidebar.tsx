@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard,
@@ -49,9 +50,9 @@ export function Sidebar() {
       {/* Mobile menu button */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-gray-900 text-white rounded"
+        className="lg:hidden fixed top-4 left-4 z-50 p-3 bg-gray-900 text-white rounded-lg shadow-lg"
       >
-        <Menu className="w-5 h-5" />
+        <Menu className="w-6 h-6" />
       </button>
 
       {/* Mobile overlay */}
@@ -67,15 +68,32 @@ export function Sidebar() {
         className={`
           fixed top-0 left-0 h-full bg-gray-900 text-white z-50
           transition-all duration-300 ease-in-out
-          ${collapsed ? 'w-[52px]' : 'w-[180px]'}
+          ${collapsed ? 'w-[60px]' : 'w-[200px]'}
           ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
       >
         {/* Header */}
-        <div className={`h-10 flex items-center border-b border-gray-800 ${collapsed ? 'px-3 justify-center' : 'px-3 justify-between'}`}>
-          {!collapsed && (
-            <Link href="/admin" className="font-medium text-xs truncate">
-              Movilidad Diversa
+        <div className={`h-14 flex items-center border-b border-gray-800 ${collapsed ? 'px-2 justify-center' : 'px-3 justify-between'}`}>
+          {!collapsed ? (
+            <Link href="/admin" className="flex items-center gap-2">
+              <Image
+                src="/logo-movilidad-diversa-601-YNq9g7O3JECXj96E.jpeg"
+                alt="Movilidad Diversa"
+                width={32}
+                height={32}
+                className="rounded-md"
+              />
+              <span className="font-medium text-xs truncate">Movilidad Diversa</span>
+            </Link>
+          ) : (
+            <Link href="/admin">
+              <Image
+                src="/logo-movilidad-diversa-601-YNq9g7O3JECXj96E.jpeg"
+                alt="Movilidad Diversa"
+                width={28}
+                height={28}
+                className="rounded-md"
+              />
             </Link>
           )}
 
@@ -101,7 +119,7 @@ export function Sidebar() {
         </div>
 
         {/* Navigation */}
-        <nav className="p-2 space-y-0.5">
+        <nav className="p-2 space-y-1">
           {navItems.map((item) => {
             const Icon = item.icon
             const active = isActive(item.href)
@@ -112,19 +130,19 @@ export function Sidebar() {
                 href={item.href}
                 onClick={() => setMobileOpen(false)}
                 className={`
-                  flex items-center gap-2 px-2 py-1.5 rounded
-                  transition-colors duration-150
+                  flex items-center gap-2.5 px-3 py-2.5 rounded-lg
+                  transition-colors duration-150 min-h-[44px]
                   ${active
                     ? 'bg-white/10 text-white'
                     : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
                   }
-                  ${collapsed ? 'justify-center' : ''}
+                  ${collapsed ? 'justify-center px-2' : ''}
                 `}
                 title={collapsed ? item.label : undefined}
               >
-                <Icon className="w-3.5 h-3.5 flex-shrink-0" />
+                <Icon className="w-4 h-4 flex-shrink-0" />
                 {!collapsed && (
-                  <span className="text-[11px] font-medium truncate">{item.label}</span>
+                  <span className="text-xs font-medium truncate">{item.label}</span>
                 )}
               </Link>
             )
@@ -136,16 +154,16 @@ export function Sidebar() {
           <Link
             href="/admin/settings"
             className={`
-              flex items-center gap-2 px-2 py-1.5 rounded
+              flex items-center gap-2.5 px-3 py-2.5 rounded-lg min-h-[44px]
               text-gray-400 hover:bg-white/5 hover:text-gray-200
               transition-colors duration-150
-              ${collapsed ? 'justify-center' : ''}
+              ${collapsed ? 'justify-center px-2' : ''}
             `}
             title={collapsed ? 'Config' : undefined}
           >
-            <Settings className="w-3.5 h-3.5 flex-shrink-0" />
+            <Settings className="w-4 h-4 flex-shrink-0" />
             {!collapsed && (
-              <span className="text-[11px] font-medium">Config</span>
+              <span className="text-xs font-medium">Config</span>
             )}
           </Link>
         </div>

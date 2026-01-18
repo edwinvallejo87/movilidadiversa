@@ -10,8 +10,9 @@ export default function AdminLayout({
       <Sidebar />
 
       {/* Main content */}
-      <main className="lg:pl-[180px] transition-all duration-300">
-        <div className="p-4">
+      <main className="lg:pl-[200px] transition-all duration-300">
+        {/* Mobile padding to account for menu button */}
+        <div className="pt-24 lg:pt-8 px-4 pb-6 lg:px-8">
           {children}
         </div>
       </main>
