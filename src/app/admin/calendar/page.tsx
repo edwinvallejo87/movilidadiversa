@@ -1096,78 +1096,95 @@ export default function CalendarPage() {
               )}
             </div>
 
-            {/* Servicios Adicionales / Extras */}
+            {/* Servicios Adicionales / Extras - Agregar uno por uno */}
             {additionalServicesList.length > 0 && (
-              <div className="bg-gray-50 p-3 rounded border border-gray-100 space-y-3">
-                <h3 className="text-xs font-semibold text-gray-700">Extras / Servicios Adicionales</h3>
-                <div className="space-y-2">
-                  {additionalServicesList.map((service: any) => {
-                    const isSelected = formData.additionalServices.some((s: any) => s.code === service.code)
-                    const selectedService = formData.additionalServices.find((s: any) => s.code === service.code)
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Select
+                    value=""
+                    onValueChange={(code) => {
+                      if (code && !formData.additionalServices.some((s: any) => s.code === code)) {
+                        setFormData({
+                          ...formData,
+                          additionalServices: [
+                            ...formData.additionalServices,
+                            { code, quantity: 1 }
+                          ]
+                        })
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="+ Agregar extra..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {additionalServicesList
+                        .filter((s: any) => !formData.additionalServices.some((sel: any) => sel.code === s.code))
+                        .map((service: any) => (
+                          <SelectItem key={service.code} value={service.code}>
+                            <div className="flex justify-between items-center gap-4 w-full">
+                              <span>{service.name}</span>
+                              <span className="text-gray-400 text-xs">${service.price?.toLocaleString()}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                    return (
-                      <div key={service.code} className="flex items-start gap-3 p-2 rounded border border-gray-200 bg-white">
-                        <input
-                          type="checkbox"
-                          id={`service-${service.code}`}
-                          checked={isSelected}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setFormData({
-                                ...formData,
-                                additionalServices: [
-                                  ...formData.additionalServices,
-                                  { code: service.code, quantity: 1 }
-                                ]
-                              })
-                            } else {
-                              setFormData({
-                                ...formData,
-                                additionalServices: formData.additionalServices.filter(
-                                  (s: any) => s.code !== service.code
-                                )
-                              })
-                            }
-                          }}
-                          className="mt-0.5 h-4 w-4 rounded border-gray-300"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <label htmlFor={`service-${service.code}`} className="text-xs font-medium text-gray-900 cursor-pointer">
-                            {service.name}
-                          </label>
-                          <p className="text-[10px] text-gray-500">{service.description}</p>
-                          <p className="text-[10px] text-gray-400 mt-0.5">
-                            ${service.price?.toLocaleString()}
-                            {service.priceType === 'POR_HORA' && ' / hora'}
-                            {service.priceType === 'POR_UNIDAD' && ' / unidad'}
-                          </p>
-                        </div>
-                        {isSelected && service.priceType !== 'FIJO' && (
-                          <div className="flex items-center gap-1">
+                {/* Lista de extras agregados */}
+                {formData.additionalServices.length > 0 && (
+                  <div className="space-y-1.5">
+                    {formData.additionalServices.map((selected: any) => {
+                      const service = additionalServicesList.find((s: any) => s.code === selected.code)
+                      if (!service) return null
+
+                      return (
+                        <div key={selected.code} className="flex items-center gap-2 p-2 bg-gray-50 rounded border border-gray-100">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium text-gray-900 truncate">{service.name}</p>
+                            <p className="text-[10px] text-gray-500">
+                              ${service.price?.toLocaleString()}
+                              {service.priceType === 'POR_HORA' && ' / hora'}
+                              {service.priceType === 'POR_UNIDAD' && ' / unidad'}
+                            </p>
+                          </div>
+                          {service.priceType !== 'FIJO' && (
                             <Input
                               type="number"
                               min="1"
-                              value={selectedService?.quantity || 1}
+                              value={selected.quantity || 1}
                               onChange={(e) => {
                                 const qty = parseInt(e.target.value) || 1
                                 setFormData({
                                   ...formData,
                                   additionalServices: formData.additionalServices.map((s: any) =>
-                                    s.code === service.code ? { ...s, quantity: qty } : s
+                                    s.code === selected.code ? { ...s, quantity: qty } : s
                                   )
                                 })
                               }}
-                              className="w-16 h-7 text-xs"
+                              className="w-14 h-7 text-xs"
                             />
-                            <span className="text-[10px] text-gray-400">
-                              {service.priceType === 'POR_HORA' ? 'hrs' : 'uds'}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormData({
+                                ...formData,
+                                additionalServices: formData.additionalServices.filter(
+                                  (s: any) => s.code !== selected.code
+                                )
+                              })
+                            }}
+                            className="text-gray-400 hover:text-red-500 p-1"
+                          >
+                            <span className="text-xs">✕</span>
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             )}
 
