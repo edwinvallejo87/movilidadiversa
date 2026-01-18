@@ -1096,6 +1096,81 @@ export default function CalendarPage() {
               )}
             </div>
 
+            {/* Servicios Adicionales / Extras */}
+            {additionalServicesList.length > 0 && (
+              <div className="bg-gray-50 p-3 rounded border border-gray-100 space-y-3">
+                <h3 className="text-xs font-semibold text-gray-700">Extras / Servicios Adicionales</h3>
+                <div className="space-y-2">
+                  {additionalServicesList.map((service: any) => {
+                    const isSelected = formData.additionalServices.some((s: any) => s.code === service.code)
+                    const selectedService = formData.additionalServices.find((s: any) => s.code === service.code)
+
+                    return (
+                      <div key={service.code} className="flex items-start gap-3 p-2 rounded border border-gray-200 bg-white">
+                        <input
+                          type="checkbox"
+                          id={`service-${service.code}`}
+                          checked={isSelected}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setFormData({
+                                ...formData,
+                                additionalServices: [
+                                  ...formData.additionalServices,
+                                  { code: service.code, quantity: 1 }
+                                ]
+                              })
+                            } else {
+                              setFormData({
+                                ...formData,
+                                additionalServices: formData.additionalServices.filter(
+                                  (s: any) => s.code !== service.code
+                                )
+                              })
+                            }
+                          }}
+                          className="mt-0.5 h-4 w-4 rounded border-gray-300"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <label htmlFor={`service-${service.code}`} className="text-xs font-medium text-gray-900 cursor-pointer">
+                            {service.name}
+                          </label>
+                          <p className="text-[10px] text-gray-500">{service.description}</p>
+                          <p className="text-[10px] text-gray-400 mt-0.5">
+                            ${service.price?.toLocaleString()}
+                            {service.priceType === 'POR_HORA' && ' / hora'}
+                            {service.priceType === 'POR_UNIDAD' && ' / unidad'}
+                          </p>
+                        </div>
+                        {isSelected && service.priceType !== 'FIJO' && (
+                          <div className="flex items-center gap-1">
+                            <Input
+                              type="number"
+                              min="1"
+                              value={selectedService?.quantity || 1}
+                              onChange={(e) => {
+                                const qty = parseInt(e.target.value) || 1
+                                setFormData({
+                                  ...formData,
+                                  additionalServices: formData.additionalServices.map((s: any) =>
+                                    s.code === service.code ? { ...s, quantity: qty } : s
+                                  )
+                                })
+                              }}
+                              className="w-16 h-7 text-xs"
+                            />
+                            <span className="text-[10px] text-gray-400">
+                              {service.priceType === 'POR_HORA' ? 'hrs' : 'uds'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Quote Breakdown */}
             {showQuoteBreakdown && currentQuote && (
               <div className="bg-gray-50 p-3 rounded border border-gray-100">
