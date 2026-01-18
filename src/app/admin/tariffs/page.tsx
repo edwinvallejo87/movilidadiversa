@@ -36,10 +36,20 @@ interface EquipmentType {
   isActive: boolean
 }
 
+interface OutOfCityDestination {
+  id: string
+  name: string
+  tripType: string
+  equipmentType: string
+  originType: string | null
+  price: number
+}
+
 export default function TariffsPage() {
   const [zones, setZones] = useState<Zone[]>([])
   const [rates, setRates] = useState<Rate[]>([])
   const [equipmentTypes, setEquipmentTypes] = useState<EquipmentType[]>([])
+  const [outOfCityDestinations, setOutOfCityDestinations] = useState<OutOfCityDestination[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedZone, setSelectedZone] = useState<string>('all')
   const [activeTab, setActiveTab] = useState<string>('zonas')
@@ -68,10 +78,11 @@ export default function TariffsPage() {
   const fetchData = async () => {
     setLoading(true)
     try {
-      const [zonesRes, ratesRes, equipmentTypesRes] = await Promise.all([
+      const [zonesRes, ratesRes, equipmentTypesRes, outOfCityRes] = await Promise.all([
         fetch('/api/admin/zones'),
         fetch('/api/admin/rates'),
-        fetch('/api/admin/equipment-types')
+        fetch('/api/admin/equipment-types'),
+        fetch('/api/admin/out-of-city-destinations')
       ])
 
       if (zonesRes.ok) {
@@ -85,6 +96,10 @@ export default function TariffsPage() {
       if (equipmentTypesRes.ok) {
         const data = await equipmentTypesRes.json()
         setEquipmentTypes(Array.isArray(data) ? data.filter((t: EquipmentType) => t.isActive) : [])
+      }
+      if (outOfCityRes.ok) {
+        const data = await outOfCityRes.json()
+        setOutOfCityDestinations(Array.isArray(data) ? data : [])
       }
     } catch (error) {
       console.error('Error fetching data:', error)
@@ -420,7 +435,7 @@ export default function TariffsPage() {
           </TabsTrigger>
           <TabsTrigger value="rutas" className="text-xs">
             <Route className="w-3 h-3 mr-1.5" />
-            Rutas Fuera de Ciudad ({routeRates.length})
+            Rutas Fuera de Ciudad ({outOfCityDestinations.length})
           </TabsTrigger>
         </TabsList>
 
@@ -516,75 +531,71 @@ export default function TariffsPage() {
 
         {/* RUTAS TAB */}
         <TabsContent value="rutas" className="space-y-4 mt-4">
-          {uniqueDestinations.length > 0 ? (
-            uniqueDestinations.map(destination => {
-              const destRates = routeRates.filter(r => r.destinationName === destination)
+          {(() => {
+            // Group out-of-city destinations by name
+            const destinationNames = [...new Set(outOfCityDestinations.map(d => d.name))]
 
-              return (
-                <div key={destination} className="bg-white border border-gray-100 rounded overflow-hidden">
-                  <div className="bg-gray-50 px-3 py-2 border-b border-gray-100 flex items-center gap-2">
-                    <Route className="w-3.5 h-3.5 text-gray-500" />
-                    <h3 className="text-sm font-medium text-gray-900">{destination}</h3>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-50 text-orange-700">
-                      Precio fijo
-                    </span>
-                  </div>
+            if (destinationNames.length > 0) {
+              return destinationNames.map(destName => {
+                const destItems = outOfCityDestinations.filter(d => d.name === destName)
 
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
-                      <thead className="bg-gray-50/50">
-                        <tr>
-                          <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Viaje</th>
-                          <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Equipo</th>
-                          <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Origen</th>
-                          <th className="px-3 py-2 text-right text-[10px] font-medium text-gray-500 uppercase">Precio</th>
-                          <th className="px-3 py-2 w-20"></th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-50">
-                        {destRates.map(rate => (
-                          <tr key={rate.id} className="hover:bg-gray-50/50">
-                            <td className="px-3 py-2">
-                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                                rate.tripType === 'SENCILLO' ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'
-                              }`}>
-                                {getTripTypeLabel(rate.tripType)}
-                              </span>
-                            </td>
-                            <td className="px-3 py-2">
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-50 text-green-700">
-                                {getEquipmentLabel(rate.equipmentType)}
-                              </span>
-                            </td>
-                            <td className="px-3 py-2 text-gray-600">
-                              {getOriginLabel(rate.originType)}
-                            </td>
-                            <td className="px-3 py-2 text-right font-semibold text-gray-900">{formatPrice(rate.price)}</td>
-                            <td className="px-3 py-2">
-                              <div className="flex justify-end gap-0.5">
-                                <Button variant="ghost" size="sm" onClick={() => handleEditRate(rate)}>
-                                  <Edit className="w-3 h-3" />
-                                </Button>
-                                <Button variant="ghost" size="sm" onClick={() => handleDeleteRate(rate.id)}>
-                                  <Trash2 className="w-3 h-3" />
-                                </Button>
-                              </div>
-                            </td>
+                return (
+                  <div key={destName} className="bg-white border border-gray-100 rounded overflow-hidden">
+                    <div className="bg-gray-50 px-3 py-2 border-b border-gray-100 flex items-center gap-2">
+                      <Route className="w-3.5 h-3.5 text-gray-500" />
+                      <h3 className="text-sm font-medium text-gray-900">{destName}</h3>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-50 text-orange-700">
+                        Precio fijo
+                      </span>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead className="bg-gray-50/50">
+                          <tr>
+                            <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Viaje</th>
+                            <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Equipo</th>
+                            <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Origen</th>
+                            <th className="px-3 py-2 text-right text-[10px] font-medium text-gray-500 uppercase">Precio</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                          {destItems.map(item => (
+                            <tr key={item.id} className="hover:bg-gray-50/50">
+                              <td className="px-3 py-2">
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                  item.tripType === 'SENCILLO' ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'
+                                }`}>
+                                  {getTripTypeLabel(item.tripType)}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2">
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-50 text-green-700">
+                                  {getEquipmentLabel(item.equipmentType)}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2 text-gray-600">
+                                {getOriginLabel(item.originType)}
+                              </td>
+                              <td className="px-3 py-2 text-right font-semibold text-gray-900">{formatPrice(item.price)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
+                )
+              })
+            } else {
+              return (
+                <div className="bg-white border border-gray-100 rounded p-8 text-center">
+                  <Route className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                  <p className="text-sm text-gray-500">No hay rutas configuradas</p>
+                  <p className="text-xs text-gray-400 mt-1">Contactar administrador para agregar rutas fuera de ciudad</p>
                 </div>
               )
-            })
-          ) : (
-            <div className="bg-white border border-gray-100 rounded p-8 text-center">
-              <Route className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-              <p className="text-sm text-gray-500">No hay rutas configuradas</p>
-              <p className="text-xs text-gray-400 mt-1">Usa "Nueva Tarifa" y selecciona "Ruta Fuera de Ciudad"</p>
-            </div>
-          )}
+            }
+          })()}
         </TabsContent>
       </Tabs>
 
