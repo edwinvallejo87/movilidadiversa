@@ -131,7 +131,10 @@ export default function BookingPage() {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Error al crear la reserva')
+        const errorMsg = data.details
+          ? `${data.error}: ${data.details.join(', ')}`
+          : data.error || 'Error al crear la reserva'
+        throw new Error(errorMsg)
       }
 
       setBookingResult(data)

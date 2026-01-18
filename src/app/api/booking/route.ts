@@ -6,7 +6,7 @@ const BookingSchema = z.object({
   // Customer info
   customerName: z.string().min(2),
   customerPhone: z.string().min(7),
-  customerEmail: z.string().email().optional().nullable(),
+  customerEmail: z.string().email().optional().nullable().or(z.literal('')).or(z.literal(null)),
 
   // Trip info
   originAddress: z.string().min(5),
@@ -19,10 +19,10 @@ const BookingSchema = z.object({
 
   // Pricing
   estimatedAmount: z.number(),
-  zone: z.string().optional(),
+  zone: z.string().optional().nullable(),
 
   // Optional
-  notes: z.string().optional(),
+  notes: z.string().optional().nullable().or(z.literal('')),
 })
 
 export async function POST(request: NextRequest) {
@@ -140,14 +140,18 @@ export async function POST(request: NextRequest) {
     console.error('Booking API error:', error)
 
     if (error instanceof z.ZodError) {
+      console.error('Zod validation errors:', JSON.stringify(error.issues, null, 2))
       return NextResponse.json(
-        { error: 'Datos incompletos o inválidos', details: error.issues },
+        {
+          error: 'Datos incompletos o inválidos',
+          details: error.issues.map(i => `${i.path.join('.')}: ${i.message}`)
+        },
         { status: 400 }
       )
     }
 
     return NextResponse.json(
-      { error: 'Error al procesar la reserva' },
+      { error: 'Error al procesar la reserva: ' + (error instanceof Error ? error.message : 'Unknown error') },
       { status: 500 }
     )
   }
