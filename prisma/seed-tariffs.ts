@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client'
 const prisma = new PrismaClient()
 
 async function main() {
-  console.log('Seeding tariff data...')
+  console.log('Seeding database...')
 
   // Clean existing data
   await prisma.rate.deleteMany()
@@ -12,6 +12,17 @@ async function main() {
   await prisma.surcharge.deleteMany()
   await prisma.outOfCityDestination.deleteMany()
   await prisma.pricingConfig.deleteMany()
+  await prisma.equipmentType.deleteMany()
+
+  // ===== EQUIPMENT TYPES =====
+  console.log('Creating equipment types...')
+
+  await prisma.equipmentType.createMany({
+    data: [
+      { name: 'Vehículo con Rampa', code: 'RAMPA', description: 'Vehículo adaptado con rampa para silla de ruedas' },
+      { name: 'Silla Robótica Plegable', code: 'ROBOTICA_PLEGABLE', description: 'Servicio con silla robótica plegable para escaleras' },
+    ]
+  })
 
   // ===== ZONES =====
   console.log('Creating zones...')
@@ -233,6 +244,7 @@ async function main() {
   console.log('Tariff seeding completed successfully!')
 
   // Print summary
+  const equipmentCount = await prisma.equipmentType.count()
   const zoneCount = await prisma.zone.count()
   const rateCount = await prisma.rate.count()
   const destCount = await prisma.outOfCityDestination.count()
@@ -241,6 +253,7 @@ async function main() {
 
   console.log(`
 Summary:
+- Equipment Types: ${equipmentCount}
 - Zones: ${zoneCount}
 - Rates: ${rateCount}
 - Out of City Destinations: ${destCount}

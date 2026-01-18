@@ -14,8 +14,7 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
-    "db:seed": "tsx scripts/seed_sample_data.ts",
-    "db:import": "tsx scripts/import_tariffs.ts",
+    "db:seed": "tsx prisma/seed-tariffs.ts",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
@@ -46,6 +45,9 @@
     "tailwind-merge": "^3.4.0",
     "xlsx": "^0.18.5",
     "zod": "^4.1.13"
+  },
+"prisma": {
+    "seed": "tsx prisma/seed-tariffs.ts"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
