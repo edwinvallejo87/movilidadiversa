@@ -4,13 +4,28 @@ import { z } from 'zod'
 
 const UpdateAppointmentSchema = z.object({
   staffId: z.string().cuid().nullable().optional(),
-  status: z.enum(['PENDING', 'CONFIRMED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional(),
-  notes: z.string().optional(),
+  status: z.enum(['PENDING', 'SCHEDULED', 'CONFIRMED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional(),
+  notes: z.string().optional().nullable(),
   internalNotes: z.string().optional(),
   actualStartTime: z.string().datetime().optional(),
   actualEndTime: z.string().datetime().optional(),
   rating: z.number().int().min(1).max(5).optional(),
   feedback: z.string().optional()
+})
+
+// Full update schema for PUT
+const FullUpdateAppointmentSchema = z.object({
+  customerId: z.string().optional(),
+  staffId: z.string().nullable().optional(),
+  scheduledAt: z.string().optional(),
+  originAddress: z.string().optional(),
+  destinationAddress: z.string().optional(),
+  notes: z.string().optional().nullable(),
+  estimatedAmount: z.number().optional(),
+  distanceKm: z.number().optional(),
+  equipmentType: z.enum(['RAMPA', 'ROBOTICA_PLEGABLE']).optional(),
+  status: z.enum(['PENDING', 'SCHEDULED', 'CONFIRMED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional(),
+  pricingBreakdown: z.array(z.any()).optional()
 })
 
 export async function GET(
@@ -107,6 +122,83 @@ export async function PATCH(
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { 
+          error: 'Invalid request data',
+          details: error.issues
+        },
+        { status: 400 }
+      )
+    }
+
+    return NextResponse.json(
+      { error: 'Error updating appointment' },
+      { status: 500 }
+    )
+  }
+}
+
+// PUT - Full update of appointment
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    const body = await request.json()
+    const updateData = FullUpdateAppointmentSchema.parse(body)
+
+    // Verify appointment exists
+    const existingAppointment = await db.appointment.findUnique({
+      where: { id }
+    })
+
+    if (!existingAppointment) {
+      return NextResponse.json(
+        { error: 'Appointment not found' },
+        { status: 404 }
+      )
+    }
+
+    // Build update object
+    const dataToUpdate: any = {
+      updatedAt: new Date()
+    }
+
+    if (updateData.customerId) dataToUpdate.customerId = updateData.customerId
+    if (updateData.staffId !== undefined) dataToUpdate.staffId = updateData.staffId || null
+    if (updateData.scheduledAt) dataToUpdate.scheduledAt = new Date(updateData.scheduledAt)
+    if (updateData.originAddress) dataToUpdate.originAddress = updateData.originAddress
+    if (updateData.destinationAddress) dataToUpdate.destinationAddress = updateData.destinationAddress
+    if (updateData.notes !== undefined) dataToUpdate.notes = updateData.notes
+    if (updateData.estimatedAmount !== undefined) dataToUpdate.totalAmount = updateData.estimatedAmount
+    if (updateData.distanceKm !== undefined) dataToUpdate.distanceKm = updateData.distanceKm
+    if (updateData.equipmentType) dataToUpdate.equipmentType = updateData.equipmentType
+    if (updateData.status) dataToUpdate.status = updateData.status
+    if (updateData.pricingBreakdown) {
+      dataToUpdate.pricingSnapshot = JSON.stringify({
+        method: 'admin_edit',
+        breakdown: updateData.pricingBreakdown
+      })
+    }
+
+    const updatedAppointment = await db.appointment.update({
+      where: { id },
+      data: dataToUpdate,
+      include: {
+        service: true,
+        customer: true,
+        staff: true,
+        resource: true
+      }
+    })
+
+    return NextResponse.json(updatedAppointment)
+
+  } catch (error) {
+    console.error('Error updating appointment (PUT):', error)
+
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        {
           error: 'Invalid request data',
           details: error.issues
         },
