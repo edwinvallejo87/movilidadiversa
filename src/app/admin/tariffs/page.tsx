@@ -2,82 +2,63 @@
 
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { PlusIcon, PencilIcon, TrashIcon } from 'lucide-react'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { PlusCircle, Edit, MapPin, RefreshCw, Trash2, Route } from 'lucide-react'
+import { PageHeader } from '@/components/admin'
+import { toast } from 'sonner'
 
 interface Zone {
   id: string
   name: string
-  isActive: boolean
+  slug: string
+  isMetro: boolean
 }
 
-interface Service {
+interface Rate {
   id: string
-  name: string
-  isActive: boolean
-}
-
-interface TariffRule {
-  id: string
-  zone: Zone
-  service: Service
-  pricingMode: string
-  fixedPrice?: number
-  pricePerKm?: number
-  isActive: boolean
-  distanceTiers: DistanceTier[]
-}
-
-interface DistanceTier {
-  id: string
-  minKm: number
-  maxKm?: number
+  zoneId: string
+  tripType: string
+  equipmentType: string
+  originType: string | null
+  distanceRange: string | null
+  destinationName: string | null
   price: number
 }
 
-interface Surcharge {
+interface EquipmentType {
   id: string
   name: string
-  type: string
-  amount: number
-  amountType: string
+  slug: string
   isActive: boolean
-  conditionJson: string | null
 }
 
 export default function TariffsPage() {
-  const [tariffs, setTariffs] = useState<TariffRule[]>([])
-  const [surcharges, setSurcharges] = useState<Surcharge[]>([])
   const [zones, setZones] = useState<Zone[]>([])
-  const [services, setServices] = useState<Service[]>([])
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [isSurchargeDialogOpen, setIsSurchargeDialogOpen] = useState(false)
-  const [editingTariff, setEditingTariff] = useState<TariffRule | null>(null)
-  const [editingSurcharge, setEditingSurcharge] = useState<Surcharge | null>(null)
+  const [rates, setRates] = useState<Rate[]>([])
+  const [equipmentTypes, setEquipmentTypes] = useState<EquipmentType[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selectedZone, setSelectedZone] = useState<string>('all')
+  const [activeTab, setActiveTab] = useState<string>('zonas')
 
-  const [formData, setFormData] = useState({
-    zoneId: 'general',
-    serviceId: '',
-    pricingMode: 'FIXED',
-    fixedPrice: '',
-    pricePerKm: '',
-    isActive: true
-  })
+  // Edit modal states
+  const [isEditOpen, setIsEditOpen] = useState(false)
+  const [editingRate, setEditingRate] = useState<Rate | null>(null)
+  const [ratePrice, setRatePrice] = useState('')
 
-  const [surchargeFormData, setSurchargeFormData] = useState({
-    name: '',
-    type: 'TIME_BASED',
-    amount: '',
-    amountType: 'FIXED',
-    isActive: true,
-    timeRanges: [{ start: '', end: '' }],
-    daysOfWeek: [] as number[],
-    holidays: false
+  // Create modal states
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [newRate, setNewRate] = useState({
+    zoneId: '',
+    tripType: 'SENCILLO',
+    equipmentType: 'RAMPA',
+    originType: '',
+    distanceRange: '',
+    destinationName: '',
+    price: ''
   })
 
   useEffect(() => {
@@ -85,449 +66,581 @@ export default function TariffsPage() {
   }, [])
 
   const fetchData = async () => {
+    setLoading(true)
     try {
-      const [tariffsRes, surchargesRes, zonesRes, servicesRes] = await Promise.all([
-        fetch('/api/admin/tariffs'),
-        fetch('/api/admin/surcharges'),
+      const [zonesRes, ratesRes, equipmentTypesRes] = await Promise.all([
         fetch('/api/admin/zones'),
-        fetch('/api/admin/services')
+        fetch('/api/admin/rates'),
+        fetch('/api/admin/equipment-types')
       ])
 
-      if (tariffsRes.ok) {
-        const tariffsData = await tariffsRes.json()
-        setTariffs(Array.isArray(tariffsData) ? tariffsData : [])
-      }
-      
-      if (surchargesRes.ok) {
-        const surchargesData = await surchargesRes.json()
-        setSurcharges(Array.isArray(surchargesData) ? surchargesData : [])
-      }
-      
       if (zonesRes.ok) {
-        const zonesData = await zonesRes.json()
-        setZones(Array.isArray(zonesData) ? zonesData : [])
+        const data = await zonesRes.json()
+        setZones(Array.isArray(data) ? data : [])
       }
-      
-      if (servicesRes.ok) {
-        const servicesData = await servicesRes.json()
-        setServices(Array.isArray(servicesData?.services) ? servicesData.services : [])
+      if (ratesRes.ok) {
+        const data = await ratesRes.json()
+        setRates(Array.isArray(data) ? data : [])
+      }
+      if (equipmentTypesRes.ok) {
+        const data = await equipmentTypesRes.json()
+        setEquipmentTypes(Array.isArray(data) ? data.filter((t: EquipmentType) => t.isActive) : [])
       }
     } catch (error) {
       console.error('Error fetching data:', error)
-      // Set empty arrays as fallbacks
-      setTariffs([])
-      setSurcharges([])
-      setZones([])
-      setServices([])
+      toast.error('Error al cargar los datos')
+    } finally {
+      setLoading(false)
     }
   }
 
-  const handleTariffSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleEditRate = (rate: Rate) => {
+    setEditingRate(rate)
+    setRatePrice(rate.price.toString())
+    setIsEditOpen(true)
+  }
+
+  const handleUpdateRate = async () => {
+    if (!editingRate) return
+
     try {
-      const payload = {
-        ...formData,
-        fixedPrice: formData.fixedPrice ? parseFloat(formData.fixedPrice) : null,
-        pricePerKm: formData.pricePerKm ? parseFloat(formData.pricePerKm) : null
-      }
-
-      const url = editingTariff 
-        ? `/api/admin/tariffs/${editingTariff.id}` 
-        : '/api/admin/tariffs'
-      const method = editingTariff ? 'PUT' : 'POST'
-
-      const response = await fetch(url, {
-        method,
+      const response = await fetch(`/api/admin/rates/${editingRate.id}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ price: parseInt(ratePrice) })
       })
 
       if (response.ok) {
-        setIsDialogOpen(false)
-        setEditingTariff(null)
-        setFormData({ zoneId: 'general', serviceId: '', pricingMode: 'FIXED', fixedPrice: '', pricePerKm: '', isActive: true })
+        toast.success('Tarifa actualizada')
+        setIsEditOpen(false)
         fetchData()
+      } else {
+        toast.error('Error al actualizar')
       }
     } catch (error) {
-      console.error('Error saving tariff:', error)
+      toast.error('Error al actualizar')
     }
   }
 
-  const handleSurchargeSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleCreateRate = async () => {
+    const selectedZoneData = zones.find(z => z.id === newRate.zoneId)
+    const isOutOfCity = selectedZoneData?.slug === 'fuera-ciudad'
+
+    // Validation
+    if (!newRate.zoneId || !newRate.price) {
+      toast.error('Completa todos los campos requeridos')
+      return
+    }
+
+    if (isOutOfCity && !newRate.destinationName) {
+      toast.error('Ingresa el nombre del destino')
+      return
+    }
+
     try {
-      const conditions = {
-        timeRanges: surchargeFormData.timeRanges.filter(tr => tr.start && tr.end),
-        daysOfWeek: surchargeFormData.daysOfWeek,
-        holidays: surchargeFormData.holidays
-      }
-
-      const payload = {
-        name: surchargeFormData.name,
-        type: surchargeFormData.type,
-        amount: parseFloat(surchargeFormData.amount),
-        amountType: surchargeFormData.amountType,
-        isActive: surchargeFormData.isActive,
-        conditions: Object.keys(conditions).some(key => 
-          key === 'holidays' ? conditions.holidays : 
-          Array.isArray(conditions[key as keyof typeof conditions]) ? 
-            (conditions[key as keyof typeof conditions] as any[]).length > 0 : false
-        ) ? conditions : null
-      }
-
-      const url = editingSurcharge 
-        ? `/api/admin/surcharges/${editingSurcharge.id}` 
-        : '/api/admin/surcharges'
-      const method = editingSurcharge ? 'PUT' : 'POST'
-
-      const response = await fetch(url, {
-        method,
+      const response = await fetch('/api/admin/rates', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
-
-      if (response.ok) {
-        setIsSurchargeDialogOpen(false)
-        setEditingSurcharge(null)
-        setSurchargeFormData({
-          name: '', type: 'TIME_BASED', amount: '', amountType: 'FIXED',
-          isActive: true, timeRanges: [{ start: '', end: '' }], daysOfWeek: [], holidays: false
+        body: JSON.stringify({
+          zoneId: newRate.zoneId,
+          tripType: newRate.tripType,
+          equipmentType: newRate.equipmentType,
+          originType: newRate.originType || null,
+          distanceRange: newRate.distanceRange || null,
+          destinationName: isOutOfCity ? newRate.destinationName : null,
+          price: parseInt(newRate.price)
         })
+      })
+
+      if (response.ok) {
+        toast.success('Tarifa creada')
+        setIsCreateOpen(false)
+        resetNewRate()
         fetchData()
+      } else {
+        toast.error('Error al crear tarifa')
       }
     } catch (error) {
-      console.error('Error saving surcharge:', error)
+      toast.error('Error al crear tarifa')
     }
   }
 
-  const deleteTariff = async (id: string) => {
-    try {
-      const response = await fetch(`/api/admin/tariffs/${id}`, { method: 'DELETE' })
-      if (response.ok) fetchData()
-    } catch (error) {
-      console.error('Error deleting tariff:', error)
-    }
-  }
-
-  const deleteSurcharge = async (id: string) => {
-    try {
-      const response = await fetch(`/api/admin/surcharges/${id}`, { method: 'DELETE' })
-      if (response.ok) fetchData()
-    } catch (error) {
-      console.error('Error deleting surcharge:', error)
-    }
-  }
-
-  const editTariff = (tariff: TariffRule) => {
-    setEditingTariff(tariff)
-    setFormData({
-      zoneId: tariff.zone?.id || 'general',
-      serviceId: tariff.service?.id || '',
-      pricingMode: tariff.pricingMode,
-      fixedPrice: tariff.fixedPrice?.toString() || '',
-      pricePerKm: tariff.pricePerKm?.toString() || '',
-      isActive: tariff.isActive
+  const resetNewRate = () => {
+    setNewRate({
+      zoneId: '',
+      tripType: 'SENCILLO',
+      equipmentType: 'RAMPA',
+      originType: '',
+      distanceRange: '',
+      destinationName: '',
+      price: ''
     })
-    setIsDialogOpen(true)
   }
 
-  const editSurcharge = (surcharge: Surcharge) => {
-    const conditions = surcharge.conditionJson ? JSON.parse(surcharge.conditionJson) : null
-    setEditingSurcharge(surcharge)
-    setSurchargeFormData({
-      name: surcharge.name,
-      type: surcharge.type,
-      amount: surcharge.amount.toString(),
-      amountType: surcharge.amountType,
-      isActive: surcharge.isActive,
-      timeRanges: conditions?.timeRanges || [{ start: '', end: '' }],
-      daysOfWeek: conditions?.daysOfWeek || [],
-      holidays: conditions?.holidays || false
-    })
-    setIsSurchargeDialogOpen(true)
+  const handleDeleteRate = async (id: string) => {
+    if (!confirm('¿Eliminar esta tarifa?')) return
+
+    try {
+      const response = await fetch(`/api/admin/rates/${id}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        toast.success('Tarifa eliminada')
+        fetchData()
+      } else {
+        toast.error('Error al eliminar')
+      }
+    } catch (error) {
+      toast.error('Error al eliminar')
+    }
+  }
+
+  const formatPrice = (price: number) => `$${price.toLocaleString()}`
+  const getTripTypeLabel = (type: string) => type === 'SENCILLO' ? 'Sencillo' : 'Doble'
+  const getEquipmentLabel = (slug: string) => {
+    const type = equipmentTypes.find(t => t.slug === slug)
+    if (type) return type.name
+    if (slug === 'RAMPA') return 'Rampa'
+    if (slug === 'ROBOTICA_PLEGABLE') return 'Robotica/Plegable'
+    return slug
+  }
+
+  const getDistanceLabel = (range: string | null) => {
+    if (!range) return '-'
+    if (range === 'HASTA_3KM') return '≤3 km'
+    if (range === 'DE_3_A_10KM') return '3-10 km'
+    if (range === 'MAS_10KM') return '>10 km'
+    return range
+  }
+
+  const getOriginLabel = (type: string | null) => {
+    if (!type) return '-'
+    if (type === 'DESDE_MEDELLIN') return 'Desde Medellin'
+    if (type === 'MISMO_MUNICIPIO' || type === 'MISMA_CIUDAD') return 'Misma Ciudad'
+    return type
+  }
+
+  // Separate zones and out-of-city
+  const regularZones = zones.filter(z => z.slug !== 'fuera-ciudad')
+  const outOfCityZone = zones.find(z => z.slug === 'fuera-ciudad')
+
+  // Get rates for zones (not out-of-city)
+  const zoneRates = rates.filter(r => {
+    const zone = zones.find(z => z.id === r.zoneId)
+    return zone && zone.slug !== 'fuera-ciudad'
+  })
+
+  // Get rates for out-of-city (routes)
+  const routeRates = rates.filter(r => {
+    const zone = zones.find(z => z.id === r.zoneId)
+    return zone && zone.slug === 'fuera-ciudad'
+  })
+
+  // Get unique destinations from routes
+  const uniqueDestinations = [...new Set(routeRates.map(r => r.destinationName).filter(Boolean))]
+
+  const filteredZones = selectedZone === 'all'
+    ? regularZones
+    : regularZones.filter(z => z.id === selectedZone)
+
+  const selectedZoneData = zones.find(z => z.id === newRate.zoneId)
+  const isCreatingRoute = selectedZoneData?.slug === 'fuera-ciudad'
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <RefreshCw className="w-5 h-5 animate-spin text-gray-400" />
+      </div>
+    )
   }
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold text-gray-900">Tarifas y Recargos</h1>
-          <p className="text-gray-600 mt-1">Gestiona las tarifas y recargos del sistema</p>
-        </div>
-      </div>
-
-      {/* Tariffs Section */}
-      <div>
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-gray-800">Tarifas por Zona</h2>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={() => {
-                setEditingTariff(null)
-                setFormData({ zoneId: 'general', serviceId: '', pricingMode: 'FIXED', fixedPrice: '', pricePerKm: '', isActive: true })
-              }}>
-                <PlusIcon className="w-4 h-4 mr-2" />
-                Nueva Tarifa
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>
-                  {editingTariff ? 'Editar Tarifa' : 'Nueva Tarifa'}
-                </DialogTitle>
-                <DialogDescription>
-                  {editingTariff ? 'Modifica los detalles de la tarifa' : 'Crea una nueva regla de tarifa para el servicio seleccionado'}
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleTariffSubmit} className="space-y-4">
-                <div>
-                  <Label htmlFor="zone">Zona</Label>
-                  <Select value={formData.zoneId} onValueChange={(value) => setFormData({...formData, zoneId: value})}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar zona" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="general">General (todas las zonas)</SelectItem>
-                      {Array.isArray(zones) ? zones.map(zone => (
-                        <SelectItem key={zone.id} value={zone.id}>{zone.name}</SelectItem>
-                      )) : []}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="service">Servicio</Label>
-                  <Select value={formData.serviceId} onValueChange={(value) => setFormData({...formData, serviceId: value})}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar servicio" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.isArray(services) ? services.map(service => (
-                        <SelectItem key={service.id} value={service.id}>{service.name}</SelectItem>
-                      )) : []}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="pricingMode">Modo de Tarifa</Label>
-                  <Select value={formData.pricingMode} onValueChange={(value) => setFormData({...formData, pricingMode: value})}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="FIXED">Precio Fijo</SelectItem>
-                      <SelectItem value="PER_KM">Por Kilómetro</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {formData.pricingMode === 'FIXED' && (
-                  <div>
-                    <Label htmlFor="fixedPrice">Precio Fijo (COP)</Label>
-                    <Input
-                      type="number"
-                      value={formData.fixedPrice}
-                      onChange={(e) => setFormData({...formData, fixedPrice: e.target.value})}
-                      placeholder="0"
-                    />
-                  </div>
-                )}
-
-                {formData.pricingMode === 'PER_KM' && (
-                  <div>
-                    <Label htmlFor="pricePerKm">Precio por Km (COP)</Label>
-                    <Input
-                      type="number"
-                      value={formData.pricePerKm}
-                      onChange={(e) => setFormData({...formData, pricePerKm: e.target.value})}
-                      placeholder="0"
-                    />
-                  </div>
-                )}
-
-                <Button type="submit" className="w-full">
-                  {editingTariff ? 'Actualizar' : 'Crear'} Tarifa
+    <div className="space-y-4">
+      <PageHeader
+        title="Tarifas"
+        description="Precios por zona y rutas fuera de ciudad"
+        actions={
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={fetchData}>
+              <RefreshCw className="w-3 h-3 mr-1.5" />
+              Actualizar
+            </Button>
+            <Dialog open={isCreateOpen} onOpenChange={(open) => {
+              setIsCreateOpen(open)
+              if (!open) resetNewRate()
+            }}>
+              <DialogTrigger asChild>
+                <Button size="sm">
+                  <PlusCircle className="w-3 h-3 mr-1.5" />
+                  Nueva Tarifa
                 </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
-
-        <div className="grid gap-4">
-          {Array.isArray(tariffs) ? tariffs.map((tariff) => (
-            <Card key={tariff.id} className="p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="font-semibold text-gray-900">
-                      {tariff.zone?.name || 'Zona no especificada'} - {tariff.service?.name || 'Servicio no especificado'}
-                    </h3>
-                    <Badge variant={tariff.isActive ? 'default' : 'secondary'}>
-                      {tariff.isActive ? 'Activo' : 'Inactivo'}
-                    </Badge>
-                  </div>
-                  <div className="text-sm text-gray-600 space-y-1">
-                    <p><strong>Modo:</strong> {tariff.pricingMode === 'FIXED' ? 'Precio Fijo' : 'Por Kilómetro'}</p>
-                    {tariff.fixedPrice && <p><strong>Precio:</strong> ${(tariff.fixedPrice || 0).toLocaleString()} COP</p>}
-                    {tariff.pricePerKm && <p><strong>Por Km:</strong> ${(tariff.pricePerKm || 0).toLocaleString()} COP/km</p>}
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => editTariff(tariff)}>
-                    <PencilIcon className="w-4 h-4" />
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => deleteTariff(tariff.id)}>
-                    <TrashIcon className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          )) : []}
-        </div>
-      </div>
-
-      {/* Surcharges Section */}
-      <div>
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-gray-800">Recargos</h2>
-          <Dialog open={isSurchargeDialogOpen} onOpenChange={setIsSurchargeDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={() => {
-                setEditingSurcharge(null)
-                setSurchargeFormData({
-                  name: '', type: 'TIME_BASED', amount: '', amountType: 'FIXED',
-                  isActive: true, timeRanges: [{ start: '', end: '' }], daysOfWeek: [], holidays: false
-                })
-              }}>
-                <PlusIcon className="w-4 h-4 mr-2" />
-                Nuevo Recargo
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>
-                  {editingSurcharge ? 'Editar Recargo' : 'Nuevo Recargo'}
-                </DialogTitle>
-                <DialogDescription>
-                  {editingSurcharge ? 'Modifica los detalles del recargo' : 'Crea un nuevo recargo aplicable a las tarifas'}
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleSurchargeSubmit} className="space-y-4">
-                <div>
-                  <Label htmlFor="name">Nombre</Label>
-                  <Input
-                    value={surchargeFormData.name}
-                    onChange={(e) => setSurchargeFormData({...surchargeFormData, name: e.target.value})}
-                    placeholder="Ej: Recargo nocturno"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="type">Tipo</Label>
-                  <Select value={surchargeFormData.type} onValueChange={(value) => setSurchargeFormData({...surchargeFormData, type: value})}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="TIME_BASED">Por Horario</SelectItem>
-                      <SelectItem value="DISTANCE_BASED">Por Distancia</SelectItem>
-                      <SelectItem value="EXTRA_SERVICE">Servicio Extra</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="amountType">Tipo de Monto</Label>
-                  <Select value={surchargeFormData.amountType} onValueChange={(value) => setSurchargeFormData({...surchargeFormData, amountType: value})}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="FIXED">Monto Fijo</SelectItem>
-                      <SelectItem value="PERCENTAGE">Porcentaje</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="amount">
-                    {surchargeFormData.amountType === 'PERCENTAGE' ? 'Porcentaje (%)' : 'Monto (COP)'}
-                  </Label>
-                  <Input
-                    type="number"
-                    value={surchargeFormData.amount}
-                    onChange={(e) => setSurchargeFormData({...surchargeFormData, amount: e.target.value})}
-                    placeholder="0"
-                  />
-                </div>
-
-                {surchargeFormData.type === 'TIME_BASED' && (
+              </DialogTrigger>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Nueva Tarifa</DialogTitle>
+                  <DialogDescription>
+                    {isCreatingRoute ? 'Crear tarifa para ruta fuera de ciudad' : 'Crear tarifa por zona'}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3">
                   <div>
-                    <Label>Horario de Aplicación</Label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Input
-                        type="time"
-                        value={surchargeFormData.timeRanges[0].start}
-                        onChange={(e) => setSurchargeFormData({
-                          ...surchargeFormData,
-                          timeRanges: [{ ...surchargeFormData.timeRanges[0], start: e.target.value }]
-                        })}
-                      />
-                      <Input
-                        type="time"
-                        value={surchargeFormData.timeRanges[0].end}
-                        onChange={(e) => setSurchargeFormData({
-                          ...surchargeFormData,
-                          timeRanges: [{ ...surchargeFormData.timeRanges[0], end: e.target.value }]
-                        })}
-                      />
+                    <Label>Tipo</Label>
+                    <Select
+                      value={newRate.zoneId}
+                      onValueChange={(v) => setNewRate({...newRate, zoneId: v, originType: '', distanceRange: '', destinationName: ''})}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Seleccionar tipo" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="_header_zones" disabled className="font-semibold text-gray-500">
+                          -- Zonas --
+                        </SelectItem>
+                        {regularZones.map(zone => (
+                          <SelectItem key={zone.id} value={zone.id}>{zone.name}</SelectItem>
+                        ))}
+                        {outOfCityZone && (
+                          <>
+                            <SelectItem value="_header_routes" disabled className="font-semibold text-gray-500 mt-2">
+                              -- Rutas --
+                            </SelectItem>
+                            <SelectItem value={outOfCityZone.id}>Ruta Fuera de Ciudad</SelectItem>
+                          </>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {isCreatingRoute && (
+                    <>
+                      <div>
+                        <Label>Nombre del Destino</Label>
+                        <Input
+                          value={newRate.destinationName}
+                          onChange={(e) => setNewRate({...newRate, destinationName: e.target.value})}
+                          placeholder="Ej: Aeropuerto JMC, Rionegro, La Ceja"
+                        />
+                      </div>
+                      <div>
+                        <Label>Tipo de Origen</Label>
+                        <Select value={newRate.originType} onValueChange={(v) => setNewRate({...newRate, originType: v})}>
+                          <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="DESDE_MEDELLIN">Desde Medellin</SelectItem>
+                            <SelectItem value="MISMA_CIUDAD">Misma Ciudad (local)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Tipo de Viaje</Label>
+                      <Select value={newRate.tripType} onValueChange={(v) => setNewRate({...newRate, tripType: v})}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="SENCILLO">Sencillo</SelectItem>
+                          <SelectItem value="DOBLE">Doble</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Tipo de Equipo</Label>
+                      <Select value={newRate.equipmentType} onValueChange={(v) => setNewRate({...newRate, equipmentType: v})}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {equipmentTypes.map((type) => (
+                            <SelectItem key={type.id} value={type.slug}>{type.name}</SelectItem>
+                          ))}
+                          {equipmentTypes.length === 0 && (
+                            <>
+                              <SelectItem value="RAMPA">Rampa</SelectItem>
+                              <SelectItem value="ROBOTICA_PLEGABLE">Robotica/Plegable</SelectItem>
+                            </>
+                          )}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
+
+                  {selectedZoneData?.slug === 'medellin' && (
+                    <div>
+                      <Label>Rango de Distancia</Label>
+                      <Select value={newRate.distanceRange} onValueChange={(v) => setNewRate({...newRate, distanceRange: v})}>
+                        <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="HASTA_3KM">Hasta 3 km</SelectItem>
+                          <SelectItem value="DE_3_A_10KM">3 a 10 km</SelectItem>
+                          <SelectItem value="MAS_10KM">Mas de 10 km</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {selectedZoneData && selectedZoneData.slug !== 'medellin' && selectedZoneData.slug !== 'fuera-ciudad' && (
+                    <div>
+                      <Label>Tipo de Origen</Label>
+                      <Select value={newRate.originType} onValueChange={(v) => setNewRate({...newRate, originType: v})}>
+                        <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="DESDE_MEDELLIN">Desde Medellin</SelectItem>
+                          <SelectItem value="MISMO_MUNICIPIO">Mismo Municipio</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  <div>
+                    <Label>Precio (COP)</Label>
+                    <Input
+                      type="number"
+                      value={newRate.price}
+                      onChange={(e) => setNewRate({...newRate, price: e.target.value})}
+                      placeholder="0"
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button variant="outline" size="sm" onClick={() => setIsCreateOpen(false)}>Cancelar</Button>
+                    <Button size="sm" onClick={handleCreateRate}>Crear</Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+        }
+      />
+
+      {/* Tabs: Zonas / Rutas */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="zonas" className="text-xs">
+            <MapPin className="w-3 h-3 mr-1.5" />
+            Zonas ({zoneRates.length})
+          </TabsTrigger>
+          <TabsTrigger value="rutas" className="text-xs">
+            <Route className="w-3 h-3 mr-1.5" />
+            Rutas Fuera de Ciudad ({routeRates.length})
+          </TabsTrigger>
+        </TabsList>
+
+        {/* ZONAS TAB */}
+        <TabsContent value="zonas" className="space-y-4 mt-4">
+          {/* Zone Filter */}
+          <div className="flex items-center gap-3">
+            <Label className="text-xs">Filtrar:</Label>
+            <Select value={selectedZone} onValueChange={setSelectedZone}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas las zonas</SelectItem>
+                {regularZones.map(zone => (
+                  <SelectItem key={zone.id} value={zone.id}>{zone.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Rates by Zone */}
+          {filteredZones.map(zone => {
+            const zoneSpecificRates = rates.filter(r => r.zoneId === zone.id)
+
+            return (
+              <div key={zone.id} className="bg-white border border-gray-100 rounded overflow-hidden">
+                <div className="bg-gray-50 px-3 py-2 border-b border-gray-100 flex items-center gap-2">
+                  <MapPin className="w-3.5 h-3.5 text-gray-500" />
+                  <h3 className="text-sm font-medium text-gray-900">{zone.name}</h3>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">
+                    {zone.slug === 'medellin' ? 'Por distancia' : 'Por origen'}
+                  </span>
+                </div>
+
+                {zoneSpecificRates.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead className="bg-gray-50/50">
+                        <tr>
+                          <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Viaje</th>
+                          <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Equipo</th>
+                          <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">
+                            {zone.slug === 'medellin' ? 'Distancia' : 'Origen'}
+                          </th>
+                          <th className="px-3 py-2 text-right text-[10px] font-medium text-gray-500 uppercase">Precio</th>
+                          <th className="px-3 py-2 w-20"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {zoneSpecificRates.map(rate => (
+                          <tr key={rate.id} className="hover:bg-gray-50/50">
+                            <td className="px-3 py-2">
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                rate.tripType === 'SENCILLO' ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'
+                              }`}>
+                                {getTripTypeLabel(rate.tripType)}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2">
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-50 text-green-700">
+                                {getEquipmentLabel(rate.equipmentType)}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-gray-600">
+                              {zone.slug === 'medellin' ? getDistanceLabel(rate.distanceRange) : getOriginLabel(rate.originType)}
+                            </td>
+                            <td className="px-3 py-2 text-right font-semibold text-gray-900">{formatPrice(rate.price)}</td>
+                            <td className="px-3 py-2">
+                              <div className="flex justify-end gap-0.5">
+                                <Button variant="ghost" size="sm" onClick={() => handleEditRate(rate)}>
+                                  <Edit className="w-3 h-3" />
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => handleDeleteRate(rate.id)}>
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="p-4 text-center text-xs text-gray-500">
+                    No hay tarifas configuradas
+                  </div>
                 )}
-
-                <Button type="submit" className="w-full">
-                  {editingSurcharge ? 'Actualizar' : 'Crear'} Recargo
-                </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
-
-        <div className="grid gap-4">
-          {Array.isArray(surcharges) ? surcharges.map((surcharge) => (
-            <Card key={surcharge.id} className="p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="font-semibold text-gray-900">{surcharge.name}</h3>
-                    <Badge variant={surcharge.isActive ? 'default' : 'secondary'}>
-                      {surcharge.isActive ? 'Activo' : 'Inactivo'}
-                    </Badge>
-                  </div>
-                  <div className="text-sm text-gray-600 space-y-1">
-                    <p><strong>Tipo:</strong> {surcharge.type}</p>
-                    <p><strong>Monto:</strong> 
-                      {surcharge.amountType === 'PERCENTAGE' 
-                        ? `${surcharge.amount || 0}%` 
-                        : `$${(surcharge.amount || 0).toLocaleString()} COP`
-                      }
-                    </p>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => editSurcharge(surcharge)}>
-                    <PencilIcon className="w-4 h-4" />
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => deleteSurcharge(surcharge.id)}>
-                    <TrashIcon className="w-4 h-4" />
-                  </Button>
-                </div>
               </div>
-            </Card>
-          )) : []}
-        </div>
-      </div>
+            )
+          })}
+        </TabsContent>
+
+        {/* RUTAS TAB */}
+        <TabsContent value="rutas" className="space-y-4 mt-4">
+          {uniqueDestinations.length > 0 ? (
+            uniqueDestinations.map(destination => {
+              const destRates = routeRates.filter(r => r.destinationName === destination)
+
+              return (
+                <div key={destination} className="bg-white border border-gray-100 rounded overflow-hidden">
+                  <div className="bg-gray-50 px-3 py-2 border-b border-gray-100 flex items-center gap-2">
+                    <Route className="w-3.5 h-3.5 text-gray-500" />
+                    <h3 className="text-sm font-medium text-gray-900">{destination}</h3>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-50 text-orange-700">
+                      Precio fijo
+                    </span>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead className="bg-gray-50/50">
+                        <tr>
+                          <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Viaje</th>
+                          <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Equipo</th>
+                          <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">Origen</th>
+                          <th className="px-3 py-2 text-right text-[10px] font-medium text-gray-500 uppercase">Precio</th>
+                          <th className="px-3 py-2 w-20"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {destRates.map(rate => (
+                          <tr key={rate.id} className="hover:bg-gray-50/50">
+                            <td className="px-3 py-2">
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                rate.tripType === 'SENCILLO' ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'
+                              }`}>
+                                {getTripTypeLabel(rate.tripType)}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2">
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-50 text-green-700">
+                                {getEquipmentLabel(rate.equipmentType)}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-gray-600">
+                              {getOriginLabel(rate.originType)}
+                            </td>
+                            <td className="px-3 py-2 text-right font-semibold text-gray-900">{formatPrice(rate.price)}</td>
+                            <td className="px-3 py-2">
+                              <div className="flex justify-end gap-0.5">
+                                <Button variant="ghost" size="sm" onClick={() => handleEditRate(rate)}>
+                                  <Edit className="w-3 h-3" />
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => handleDeleteRate(rate.id)}>
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )
+            })
+          ) : (
+            <div className="bg-white border border-gray-100 rounded p-8 text-center">
+              <Route className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+              <p className="text-sm text-gray-500">No hay rutas configuradas</p>
+              <p className="text-xs text-gray-400 mt-1">Usa "Nueva Tarifa" y selecciona "Ruta Fuera de Ciudad"</p>
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+
+      {/* Edit Rate Dialog */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Editar Tarifa</DialogTitle>
+            <DialogDescription>Actualizar precio</DialogDescription>
+          </DialogHeader>
+          {editingRate && (
+            <div className="space-y-3">
+              <div className="bg-gray-50 p-3 rounded text-xs space-y-1">
+                {editingRate.destinationName && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Destino:</span>
+                    <span className="font-medium">{editingRate.destinationName}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Viaje:</span>
+                  <span className="font-medium">{getTripTypeLabel(editingRate.tripType)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Equipo:</span>
+                  <span className="font-medium">{getEquipmentLabel(editingRate.equipmentType)}</span>
+                </div>
+                {editingRate.distanceRange && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Distancia:</span>
+                    <span className="font-medium">{getDistanceLabel(editingRate.distanceRange)}</span>
+                  </div>
+                )}
+                {editingRate.originType && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Origen:</span>
+                    <span className="font-medium">{getOriginLabel(editingRate.originType)}</span>
+                  </div>
+                )}
+              </div>
+              <div>
+                <Label>Precio (COP)</Label>
+                <Input
+                  type="number"
+                  value={ratePrice}
+                  onChange={(e) => setRatePrice(e.target.value)}
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={() => setIsEditOpen(false)}>Cancelar</Button>
+                <Button size="sm" onClick={handleUpdateRate}>Guardar</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -21,23 +21,26 @@ model Zone {
   @@map("zones")
 }
 
-// Base rates by zone  
+// Unified rates - handles zones AND out-of-city routes
 model Rate {
   id            String         @id @default(cuid())
   zoneId        String
   zone          Zone           @relation(fields: [zoneId], references: [id])
-  
+
   // Service type
   tripType      String       // SENCILLO or DOBLE
-  equipmentType String       // RAMPA or ROBOTICA_PLEGABLE
-  
-  // Trip context
+  equipmentType String       // RAMPA, ROBOTICA_PLEGABLE, or dynamic types
+
+  // For zone-based pricing (Medellín, Área Metro)
   originType    String?      // DESDE_MEDELLIN or MISMO_MUNICIPIO
   distanceRange String?      // Only for Medellín: HASTA_3KM, DE_3_A_10KM, MAS_10KM
-  
+
+  // For out-of-city routes (when zone is "fuera-ciudad")
+  destinationName String?    // "Aeropuerto JMC", "Rionegro", "Abejorral", etc.
+
   // Price in COP
   price         Int
-  
+
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
@@ -124,21 +127,23 @@ model Holiday {
   @@map("holidays")
 }
 
-// Staff Management (Brisk-style)
+// Staff Management - Conductor + Vehiculo como unidad
 model Staff {
   id           String   @id @default(cuid())
   name         String
-  type         String   // DRIVER, VEHICLE, ASSISTANT
+  type         String   @default("DRIVER") // DRIVER (conductor con vehiculo)
   status       String   @default("AVAILABLE") // AVAILABLE, BUSY, OFFLINE, MAINTENANCE
   phone        String?
   email        String?
   color        String   @default("#3B82F6") // Color for calendar identification
-  
-  // Vehicle specific fields
-  licensePlate String?
-  capacity     Int?
-  isWheelchairAccessible Boolean @default(false)
-  
+
+  // Vehicle info (conductor + vehiculo son una unidad)
+  licensePlate String?  // Placa del vehiculo
+  vehicleModel String?  // Modelo del vehiculo
+  capacity     Int?     // Capacidad de pasajeros
+  isWheelchairAccessible Boolean @default(false) // Tiene rampa
+  equipmentType String  @default("RAMPA") // RAMPA o ROBOTICA_PLEGABLE
+
   // Driver specific fields
   licenseNumber String?
   
@@ -201,6 +206,19 @@ model Resource {
   appointments Appointment[] @relation("ResourceUsed")
 
   @@map("resources")
+}
+
+// Equipment Types - dynamic list of vehicle/service equipment
+model EquipmentType {
+  id          String   @id @default(cuid())
+  name        String   // "Vehículo con Rampa", "Silla Robótica/Plegable", etc.
+  slug        String   @unique  // "RAMPA", "ROBOTICA_PLEGABLE", etc.
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("equipment_types")
 }
 
 // Enhanced Customer model
@@ -267,11 +285,12 @@ model Service {
 // Enhanced Appointment model (Brisk-style)
 model Appointment {
   id                    String            @id @default(cuid())
-  serviceId             String
+  serviceId             String?           // Optional - legacy, equipment type now comes from staff
   customerId            String
   staffId               String?           // Assigned staff member
   resourceId            String?           // Assigned resource/vehicle
-  
+  equipmentType         String            @default("RAMPA")  // RAMPA or ROBOTICA_PLEGABLE - from conductor
+
   // Location details
   originAddress         String
   originLat             Float
@@ -279,31 +298,31 @@ model Appointment {
   destinationAddress    String
   destinationLat        Float
   destinationLng        Float
-  
+
   // Scheduling
   scheduledAt           DateTime
   estimatedDuration     Int
   actualStartTime       DateTime?
   actualEndTime         DateTime?
-  
+
   // Pricing
   distanceKm            Float
   pricingSnapshot       String            // JSON as TEXT
   totalAmount           Float
-  
+
   // Status and notes
   status                String            @default("PENDING") // PENDING, CONFIRMED, etc.
   notes                 String?
   internalNotes         String?           // Staff notes
-  
+
   // Customer satisfaction
   rating                Int?              // 1-5 stars
   feedback              String?
-  
+
   createdAt             DateTime          @default(now())
   updatedAt             DateTime          @updatedAt
 
-  service         Service   @relation(fields: [serviceId], references: [id])
+  service         Service?  @relation(fields: [serviceId], references: [id])
   customer        Customer  @relation(fields: [customerId], references: [id])
   staff           Staff?    @relation("StaffMember", fields: [staffId], references: [id])
   resource        Resource? @relation("ResourceUsed", fields: [resourceId], references: [id])

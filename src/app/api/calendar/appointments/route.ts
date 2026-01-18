@@ -112,7 +112,7 @@ export async function GET(request: NextRequest) {
         .map(apt => ({
           id: apt.id,
           startDateTime: apt.scheduledAt,
-          endDateTime: new Date(apt.scheduledAt.getTime() + (apt.service.durationMinutes * 60000)),
+          endDateTime: new Date(apt.scheduledAt.getTime() + ((apt.service?.durationMinutes || apt.estimatedDuration || 60) * 60000)),
           customer: apt.customer,
           service: apt.service,
           resource: apt.resource,
@@ -136,7 +136,7 @@ export async function GET(request: NextRequest) {
         .map(apt => ({
           id: apt.id,
           startDateTime: apt.scheduledAt,
-          endDateTime: new Date(apt.scheduledAt.getTime() + (apt.service.durationMinutes * 60000)),
+          endDateTime: new Date(apt.scheduledAt.getTime() + ((apt.service?.durationMinutes || apt.estimatedDuration || 60) * 60000)),
           customer: apt.customer,
           service: apt.service,
           staff: apt.staff,
@@ -154,7 +154,7 @@ export async function GET(request: NextRequest) {
       .map(apt => ({
         id: apt.id,
         startDateTime: apt.scheduledAt,
-        endDateTime: new Date(apt.scheduledAt.getTime() + (apt.service.durationMinutes * 60000)),
+        endDateTime: new Date(apt.scheduledAt.getTime() + ((apt.service?.durationMinutes || apt.estimatedDuration || 60) * 60000)),
         customer: apt.customer,
         service: apt.service,
         resource: apt.resource,

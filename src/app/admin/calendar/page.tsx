@@ -12,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
+import { Calendar as CalendarIcon, User, Wrench, Car, AlertTriangle, ClipboardList, DollarSign, MapPin } from 'lucide-react'
+import { PageHeader } from '@/components/admin'
 
 // Configurar moment en español
 moment.locale('es')
@@ -20,16 +22,12 @@ const localizer = momentLocalizer(moment)
 interface AppointmentEvent extends Event {
   id: string
   appointmentId: string
-  serviceId: string
   customerId: string
   staffId?: string
-  resourceId?: string
   status: string
-  serviceName: string
-  serviceColor: string
+  equipmentType: string
   customerName: string
   staffName?: string
-  resourceName?: string
   totalAmount: number
   originAddress: string
   destinationAddress: string
@@ -46,26 +44,27 @@ export default function CalendarPage() {
   const [showDetailsModal, setShowDetailsModal] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState<AppointmentEvent | null>(null)
   const [selectedSlot, setSelectedSlot] = useState<any>(null)
+  const [isEditMode, setIsEditMode] = useState(false)
+  const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null)
   
   // Form data
   const [customers, setCustomers] = useState<any[]>([])
-  const [services, setServices] = useState<any[]>([])
   const [staff, setStaff] = useState<any[]>([])
-  const [resources, setResources] = useState<any[]>([])
-  
   const [formData, setFormData] = useState({
     customerId: '',
-    serviceId: '',
     staffId: '',
-    resourceId: '',
     scheduledAt: '',
     notes: '',
     estimatedAmount: 0,
-    
-    // New quote system fields
+
+    // Address fields
+    originAddress: '',
+    destinationAddress: '',
+
+    // Quote system fields
     zoneSlug: 'medellin',
     tripType: 'SENCILLO',
-    equipmentType: 'RAMPA',
+    equipmentType: 'RAMPA',  // Auto-set from selected conductor
     originType: 'MISMO_MUNICIPIO',
     distanceKm: 0,
     outOfCityDestination: '',
@@ -86,6 +85,112 @@ export default function CalendarPage() {
   const [isCheckingAvailability, setIsCheckingAvailability] = useState(false)
   const [availabilityStatus, setAvailabilityStatus] = useState<any>(null)
 
+  // Zone detection from address
+  const detectZoneFromAddress = (address: string): string | null => {
+    if (!address) return null
+    const addr = address.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Remove accents
+
+    // Out of city destinations
+    const outOfCityKeywords = ['aeropuerto', 'jmc', 'jose maria', 'rionegro', 'la ceja', 'marinilla', 'el retiro', 'abejorral', 'carmen de viboral', 'guatape', 'penol', 'santa fe de antioquia']
+    if (outOfCityKeywords.some(kw => addr.includes(kw))) {
+      return 'fuera-ciudad'
+    }
+
+    // Medellín
+    const medellinKeywords = ['medellin', 'poblado', 'laureles', 'estadio', 'belen', 'floresta', 'calasanz', 'robledo', 'castilla', 'aranjuez', 'manrique', 'buenos aires', 'la america', 'san javier', 'guayabal', 'centro medellin']
+    if (medellinKeywords.some(kw => addr.includes(kw))) {
+      return 'medellin'
+    }
+
+    // Bello, Itagüí, Envigado
+    const belloItaguiEnvigadoKeywords = ['bello', 'itagui', 'envigado', 'niquia', 'copacabana']
+    if (belloItaguiEnvigadoKeywords.some(kw => addr.includes(kw))) {
+      return 'bello-itagui-envigado'
+    }
+
+    // Sabaneta
+    if (addr.includes('sabaneta')) {
+      return 'sabaneta'
+    }
+
+    // La Estrella, Caldas
+    const estrellaCaldasKeywords = ['la estrella', 'caldas', 'estrella']
+    if (estrellaCaldasKeywords.some(kw => addr.includes(kw))) {
+      return 'la-estrella-caldas'
+    }
+
+    return null
+  }
+
+  // Detect origin type based on origin and destination zones
+  const detectOriginType = (originZone: string | null, destZone: string | null): string => {
+    // If origin is Medellín and destination is different metro zone
+    if (originZone === 'medellin' && destZone && destZone !== 'medellin' && destZone !== 'fuera-ciudad') {
+      return 'DESDE_MEDELLIN'
+    }
+    // If destination is Medellín and origin is different metro zone
+    if (destZone === 'medellin' && originZone && originZone !== 'medellin' && originZone !== 'fuera-ciudad') {
+      return 'DESDE_MEDELLIN'
+    }
+    // Same municipality
+    return 'MISMO_MUNICIPIO'
+  }
+
+  // Detect out-of-city destination name from address
+  const detectOutOfCityDestination = (address: string): string => {
+    if (!address) return ''
+    const addr = address.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+
+    if (addr.includes('aeropuerto') || addr.includes('jmc') || addr.includes('jose maria')) {
+      return 'Aeropuerto JMC'
+    }
+    if (addr.includes('rionegro')) return 'Rionegro'
+    if (addr.includes('la ceja')) return 'La Ceja'
+    if (addr.includes('marinilla')) return 'Marinilla'
+    if (addr.includes('el retiro')) return 'El Retiro'
+    if (addr.includes('abejorral')) return 'Abejorral'
+
+    return ''
+  }
+
+  // Auto-detect zone when addresses change
+  useEffect(() => {
+    const originZone = detectZoneFromAddress(formData.originAddress)
+    const destZone = detectZoneFromAddress(formData.destinationAddress)
+
+    // Determine the primary zone (destination takes priority for out-of-city)
+    let detectedZone = destZone || originZone
+
+    // If either is out-of-city, use that
+    if (originZone === 'fuera-ciudad' || destZone === 'fuera-ciudad') {
+      detectedZone = 'fuera-ciudad'
+    }
+
+    if (detectedZone && detectedZone !== formData.zoneSlug) {
+      const originType = detectOriginType(originZone, destZone)
+      const outOfCityDest = detectedZone === 'fuera-ciudad'
+        ? detectOutOfCityDestination(formData.destinationAddress) || detectOutOfCityDestination(formData.originAddress)
+        : ''
+
+      setFormData(prev => ({
+        ...prev,
+        zoneSlug: detectedZone!,
+        originType,
+        outOfCityDestination: outOfCityDest
+      }))
+
+      // Show toast to inform user
+      const zoneNames: Record<string, string> = {
+        'medellin': 'Medellín',
+        'bello-itagui-envigado': 'Bello/Itagüí/Envigado',
+        'sabaneta': 'Sabaneta',
+        'la-estrella-caldas': 'La Estrella/Caldas',
+        'fuera-ciudad': 'Fuera de Ciudad'
+      }
+      toast.info(`Zona detectada: ${zoneNames[detectedZone] || detectedZone}`)
+    }
+  }, [formData.originAddress, formData.destinationAddress])
+
   useEffect(() => {
     loadAppointments()
     loadFormData()
@@ -93,31 +198,21 @@ export default function CalendarPage() {
 
   const loadFormData = async () => {
     try {
-      const [customersRes, servicesRes, staffRes, resourcesRes, pricingZonesRes, additionalServicesRes, destinationsRes] = await Promise.all([
+      const [customersRes, staffRes, pricingZonesRes, additionalServicesRes, destinationsRes] = await Promise.all([
         fetch('/api/admin/clients'),
-        fetch('/api/admin/services'),
         fetch('/api/admin/staff'),
-        fetch('/api/admin/resources'),
         fetch('/api/quotes/calculate?type=zones'),
         fetch('/api/quotes/calculate?type=additional-services'),
         fetch('/api/quotes/calculate?type=out-of-city-destinations')
       ])
-      
+
       if (customersRes.ok) {
         const customersData = await customersRes.json()
         setCustomers(customersData.customers || [])
       }
-      if (servicesRes.ok) {
-        const servicesData = await servicesRes.json()
-        setServices(Array.isArray(servicesData) ? servicesData : [])
-      }
       if (staffRes.ok) {
         const staffData = await staffRes.json()
         setStaff(Array.isArray(staffData) ? staffData : [])
-      }
-      if (resourcesRes.ok) {
-        const resourcesData = await resourcesRes.json()
-        setResources(Array.isArray(resourcesData) ? resourcesData : [])
       }
       if (pricingZonesRes.ok) {
         const pricingZonesData = await pricingZonesRes.json()
@@ -144,36 +239,39 @@ export default function CalendarPage() {
         throw new Error(`HTTP ${response.status}`)
       }
       const data = await response.json()
-      
-      const appointmentEvents: AppointmentEvent[] = Array.isArray(data?.appointments) ? data.appointments.map((apt: any) => {
-        // Crear título más informativo que muestre la agrupación
-        let title = `${apt.service.name} - ${apt.customer.name}`
+
+      // Handle both array response and { appointments: [...] } format
+      const appointmentsArray = Array.isArray(data) ? data : (data?.appointments || [])
+
+      const appointmentEvents: AppointmentEvent[] = appointmentsArray.map((apt: any) => {
+        // Get equipment type from staff or fallback
+        const equipmentType = apt.staff?.equipmentType || 'RAMPA'
+        const equipmentLabel = equipmentType === 'ROBOTICA_PLEGABLE' ? 'Robótica' : 'Rampa'
+
+        // Title: Customer - Equipment Type (Driver)
+        let title = `${apt.customer.name} - ${equipmentLabel}`
         if (apt.staff?.name) {
           title += ` (${apt.staff.name})`
         }
-        
+
         return {
           id: apt.id,
           appointmentId: apt.id,
           title,
           start: new Date(apt.scheduledAt),
-          end: new Date(new Date(apt.scheduledAt).getTime() + (apt.estimatedDuration || apt.service.durationMinutes || 60) * 60000),
-          serviceId: apt.serviceId,
+          end: new Date(new Date(apt.scheduledAt).getTime() + (apt.estimatedDuration || 60) * 60000),
           customerId: apt.customerId,
           staffId: apt.staffId,
-          resourceId: apt.resourceId,
           status: apt.status,
-          serviceName: apt.service.name,
-          serviceColor: apt.service.color || '#3B82F6',
+          equipmentType,
           customerName: apt.customer.name,
           staffName: apt.staff?.name || 'Sin asignar',
-          resourceName: apt.resource?.name,
           totalAmount: apt.totalAmount,
           originAddress: apt.originAddress || '',
           destinationAddress: apt.destinationAddress || ''
         }
-      }) : []
-      
+      })
+
       setEvents(appointmentEvents)
     } catch (error) {
       console.error('Error loading appointments:', error)
@@ -188,7 +286,7 @@ export default function CalendarPage() {
     // Map status to CSS classes for elegant styling
     const statusClassMap = {
       'SCHEDULED': 'event-scheduled',
-      'CONFIRMED': 'event-confirmed', 
+      'CONFIRMED': 'event-confirmed',
       'IN_PROGRESS': 'event-in-progress',
       'COMPLETED': 'event-completed',
       'CANCELLED': 'event-cancelled'
@@ -200,13 +298,11 @@ export default function CalendarPage() {
       className: statusClass,
       style: {
         border: 'none',
-        borderRadius: '6px',
-        padding: '4px 8px',
-        fontSize: '12px',
-        fontWeight: '600',
-        color: 'white',
-        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-        textShadow: '0 1px 2px rgba(0, 0, 0, 0.2)'
+        borderRadius: '3px',
+        padding: '2px 6px',
+        fontSize: '11px',
+        fontWeight: '500',
+        color: 'white'
       }
     }
   }
@@ -228,12 +324,12 @@ export default function CalendarPage() {
   const resetForm = () => {
     setFormData({
       customerId: '',
-      serviceId: '',
       staffId: '',
-      resourceId: '',
       scheduledAt: '',
       notes: '',
       estimatedAmount: 0,
+      originAddress: '',
+      destinationAddress: '',
       zoneSlug: 'medellin',
       tripType: 'SENCILLO',
       equipmentType: 'RAMPA',
@@ -246,21 +342,21 @@ export default function CalendarPage() {
       isHolidayOrSunday: false
     })
     setAvailabilityStatus(null)
+    setCurrentQuote(null)
+    setShowQuoteBreakdown(false)
+    setIsEditMode(false)
+    setEditingAppointmentId(null)
   }
 
   const checkAvailability = async () => {
-    if (!formData.scheduledAt || !formData.serviceId) return
-
-    const selectedService = services.find(s => s.id === formData.serviceId)
-    if (!selectedService) return
-
-    const startDateTime = new Date(formData.scheduledAt)
-    const endDateTime = new Date(startDateTime.getTime() + (selectedService.durationMinutes * 60000))
-
-    if (!formData.staffId && !formData.resourceId) {
+    if (!formData.scheduledAt || !formData.staffId) {
       setAvailabilityStatus(null)
       return
     }
+
+    const startDateTime = new Date(formData.scheduledAt)
+    // Default duration: 60 minutes
+    const endDateTime = new Date(startDateTime.getTime() + (60 * 60000))
 
     setIsCheckingAvailability(true)
     try {
@@ -270,7 +366,6 @@ export default function CalendarPage() {
       })
 
       if (formData.staffId && formData.staffId !== 'none') params.append('staffId', formData.staffId)
-      if (formData.resourceId && formData.resourceId !== 'none') params.append('resourceId', formData.resourceId)
 
       const response = await fetch(`/api/availability/check?${params}`)
       if (response.ok) {
@@ -286,19 +381,27 @@ export default function CalendarPage() {
 
   // Check availability when relevant fields change
   React.useEffect(() => {
-    if (formData.staffId || formData.resourceId) {
+    if (formData.staffId) {
       const timeoutId = setTimeout(checkAvailability, 500)
       return () => clearTimeout(timeoutId)
     } else {
       setAvailabilityStatus(null)
     }
-  }, [formData.staffId, formData.resourceId, formData.scheduledAt, formData.serviceId])
+  }, [formData.staffId, formData.scheduledAt])
 
   const calculateQuote = async () => {
     // Check if we have the minimum required data
     if (!formData.zoneSlug || !formData.tripType || !formData.equipmentType) {
       setCurrentQuote(null)
       setFormData(prev => ({...prev, estimatedAmount: 0}))
+      return
+    }
+
+    // For out-of-city zone, destination is required
+    if (formData.zoneSlug === 'fuera-ciudad' && !formData.outOfCityDestination) {
+      setCurrentQuote(null)
+      setFormData(prev => ({...prev, estimatedAmount: 0}))
+      setShowQuoteBreakdown(false)
       return
     }
 
@@ -355,14 +458,13 @@ export default function CalendarPage() {
         }))
         setShowQuoteBreakdown(true)
       } else {
-        const error = await response.json()
-        console.error('Error calculando cotización:', error)
+        // Rate not found for this combination - this is expected in some cases
         setCurrentQuote(null)
         setFormData(prev => ({...prev, estimatedAmount: 0}))
         setShowQuoteBreakdown(false)
       }
     } catch (error) {
-      console.error('Error calculando cotización:', error)
+      // Network or other error
       setCurrentQuote(null)
       setFormData(prev => ({...prev, estimatedAmount: 0}))
       setShowQuoteBreakdown(false)
@@ -406,29 +508,40 @@ export default function CalendarPage() {
 
   const handleCreateAppointment = async (e: React.FormEvent) => {
     e.preventDefault()
-    
-    if (!formData.customerId || !formData.serviceId || !formData.scheduledAt) {
+
+    if (!formData.customerId || !formData.scheduledAt) {
       toast.error('Por favor complete todos los campos obligatorios')
       return
     }
 
-    // Check availability first if staff or resource is assigned
+    if (!formData.originAddress || !formData.destinationAddress) {
+      toast.error('Por favor ingrese las direcciones de origen y destino')
+      return
+    }
+
+    // Check availability first if staff is assigned
     if (availabilityStatus && !availabilityStatus.available) {
-      toast.error('El staff o recurso seleccionado no está disponible en ese horario')
+      toast.error('El conductor seleccionado no está disponible en ese horario')
       return
     }
 
     try {
-      // Use the simplified admin API
+      // Get equipment type from selected staff
+      const selectedStaff = staff.find(s => s.id === formData.staffId)
+      const equipmentType = selectedStaff?.equipmentType || formData.equipmentType
+
+      // Create appointment payload with actual addresses
       const appointmentPayload = {
         customerId: formData.customerId,
-        serviceId: formData.serviceId,
         staffId: formData.staffId || undefined,
-        resourceId: formData.resourceId || undefined,
         scheduledAt: new Date(formData.scheduledAt).toISOString(),
-        originAddress: formData.zoneSlug === 'medellin' ? 'Medellín' : formData.zoneSlug || 'Ubicación origen',
-        destinationAddress: formData.outOfCityDestination || 'Ubicación destino',
-        notes: formData.notes
+        originAddress: formData.originAddress,
+        destinationAddress: formData.destinationAddress,
+        notes: formData.notes,
+        estimatedAmount: formData.estimatedAmount,
+        distanceKm: formData.distanceKm || 0,
+        pricingBreakdown: currentQuote?.breakdown || undefined,
+        equipmentType
       }
 
       const response = await fetch('/api/admin/appointments', {
@@ -451,12 +564,168 @@ export default function CalendarPage() {
     }
   }
 
+  // Handle opening edit mode - loads data into create form
+  const handleOpenEdit = async () => {
+    if (!selectedEvent) return
+
+    try {
+      // Fetch full appointment data
+      const response = await fetch(`/api/appointments/${selectedEvent.appointmentId}`)
+      if (!response.ok) throw new Error('Error al cargar cita')
+
+      const appointment = await response.json()
+
+      // Pre-fill form with appointment data
+      setFormData({
+        customerId: appointment.customerId || '',
+        staffId: appointment.staffId || '',
+        scheduledAt: moment(appointment.scheduledAt).format('YYYY-MM-DDTHH:mm'),
+        notes: appointment.notes || '',
+        estimatedAmount: appointment.totalAmount || 0,
+        originAddress: appointment.originAddress || '',
+        destinationAddress: appointment.destinationAddress || '',
+        zoneSlug: 'medellin', // Will be auto-detected from address
+        tripType: 'SENCILLO',
+        equipmentType: appointment.equipmentType || 'RAMPA',
+        originType: 'MISMO_MUNICIPIO',
+        distanceKm: appointment.distanceKm || 0,
+        outOfCityDestination: '',
+        extraKm: 0,
+        additionalServices: [],
+        isNightSchedule: false,
+        isHolidayOrSunday: false
+      })
+
+      setEditingAppointmentId(selectedEvent.appointmentId)
+      setIsEditMode(true)
+      setShowDetailsModal(false)
+      setShowCreateModal(true)
+    } catch (error) {
+      toast.error('Error al cargar datos de la cita')
+    }
+  }
+
+  // Handle create or update appointment
+  const handleSubmitAppointment = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!formData.customerId || !formData.scheduledAt) {
+      toast.error('Por favor complete todos los campos obligatorios')
+      return
+    }
+
+    if (!formData.originAddress || !formData.destinationAddress) {
+      toast.error('Por favor ingrese las direcciones de origen y destino')
+      return
+    }
+
+    // Check availability first if staff is assigned
+    if (availabilityStatus && !availabilityStatus.available && !isEditMode) {
+      toast.error('El conductor seleccionado no está disponible en ese horario')
+      return
+    }
+
+    try {
+      // Get equipment type from selected staff
+      const selectedStaff = staff.find(s => s.id === formData.staffId)
+      const equipmentType = selectedStaff?.equipmentType || formData.equipmentType
+
+      const payload = {
+        customerId: formData.customerId,
+        staffId: formData.staffId || null,
+        scheduledAt: new Date(formData.scheduledAt).toISOString(),
+        originAddress: formData.originAddress,
+        destinationAddress: formData.destinationAddress,
+        notes: formData.notes,
+        estimatedAmount: formData.estimatedAmount,
+        distanceKm: formData.distanceKm || 0,
+        pricingBreakdown: currentQuote?.breakdown || undefined,
+        equipmentType
+      }
+
+      let response
+      if (isEditMode && editingAppointmentId) {
+        // Update existing appointment
+        response = await fetch(`/api/appointments/${editingAppointmentId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+      } else {
+        // Create new appointment
+        response = await fetch('/api/admin/appointments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+      }
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Error al guardar')
+      }
+
+      toast.success(isEditMode ? 'Cita actualizada' : 'Cita creada')
+      setShowCreateModal(false)
+      setIsEditMode(false)
+      setEditingAppointmentId(null)
+      resetForm()
+      loadAppointments()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Error al guardar')
+    }
+  }
+
+  // Handle quick status change
+  const handleStatusChange = async (newStatus: string) => {
+    if (!selectedEvent) return
+
+    try {
+      const response = await fetch(`/api/appointments/${selectedEvent.appointmentId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      })
+
+      if (!response.ok) {
+        throw new Error('Error al actualizar estado')
+      }
+
+      toast.success(`Estado cambiado a ${newStatus}`)
+      setShowDetailsModal(false)
+      loadAppointments()
+    } catch (error) {
+      toast.error('Error al cambiar estado')
+    }
+  }
+
+  // Handle cancel appointment
+  const handleCancelAppointment = async () => {
+    if (!selectedEvent) return
+    if (!confirm('¿Cancelar esta cita?')) return
+
+    await handleStatusChange('CANCELLED')
+  }
+
+  // Get status label in Spanish
+  const getStatusLabel = (status: string) => {
+    const labels: Record<string, string> = {
+      'PENDING': 'Pendiente',
+      'SCHEDULED': 'Programada',
+      'CONFIRMED': 'Confirmada',
+      'IN_PROGRESS': 'En Progreso',
+      'COMPLETED': 'Completada',
+      'CANCELLED': 'Cancelada'
+    }
+    return labels[status] || status
+  }
+
   if (loading) {
     return (
-      <div className="container mx-auto py-8">
+      <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <p className="mt-2">Cargando calendario...</p>
+          <div className="inline-block animate-spin rounded-full h-5 w-5 border-b-2 border-gray-600"></div>
+          <p className="mt-2 text-sm text-gray-500">Cargando calendario...</p>
         </div>
       </div>
     )
@@ -464,118 +733,77 @@ export default function CalendarPage() {
 
   return (
     <div>
-      <div className="page-header">
-        <h1 className="page-title">Calendario de Citas</h1>
-        <p className="page-subtitle">Gestiona todas las citas y horarios de tu equipo</p>
-      </div>
-      
-      <div className="bg-gray-50 rounded-lg p-6 mb-6">
-        <div className="flex items-start space-x-3">
-          <div className="bg-gray-900 rounded-lg p-2">
-            <span className="text-white text-lg">📅</span>
-          </div>
-          <div>
-            <h3 className="font-semibold text-gray-900 mb-2">Centro de Gestión de Citas</h3>
-            <p className="text-gray-600 text-sm mb-3">
-              Haz clic en cualquier horario para crear una nueva cita. Cada cita agrupa:
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <span className="inline-flex items-center px-2 py-1 bg-white border border-gray-200 rounded text-xs font-medium text-gray-700">
-                👤 Cliente
-              </span>
-              <span className="inline-flex items-center px-2 py-1 bg-white border border-gray-200 rounded text-xs font-medium text-gray-700">
-                🔧 Servicio
-              </span>
-              <span className="inline-flex items-center px-2 py-1 bg-white border border-gray-200 rounded text-xs font-medium text-gray-700">
-                👨‍💼 Personal
-              </span>
-              <span className="inline-flex items-center px-2 py-1 bg-white border border-gray-200 rounded text-xs font-medium text-gray-700">
-                🚗 Recursos
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <div className="space-y-6">
-        {/* Toolbar personalizado */}
-        <div className="flex justify-between items-center mb-4">
-          <div className="flex space-x-2">
-            <Button
-              variant={view === 'day' ? 'default' : 'outline'}
-              onClick={() => setView('day')}
-            >
-              Día
-            </Button>
-            <Button
-              variant={view === 'week' ? 'default' : 'outline'}
-              onClick={() => setView('week')}
-            >
-              Semana
-            </Button>
-            <Button
-              variant={view === 'month' ? 'default' : 'outline'}
-              onClick={() => setView('month')}
-            >
-              Mes
-            </Button>
-          </div>
-          
-          <div className="flex space-x-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                const newDate = moment(date).subtract(1, view === 'day' ? 'day' : view === 'week' ? 'week' : 'month').toDate()
-                setDate(newDate)
-              }}
-            >
+      <PageHeader
+        title="Calendario de Citas"
+        description="Gestiona todas las citas y horarios de tu equipo"
+      />
+
+      {/* Toolbar del calendario */}
+      <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-100">
+        {/* Navegación de fecha */}
+        <div className="flex items-center gap-2">
+          <div className="flex gap-0.5">
+            <Button size="sm" variant="ghost" onClick={() => {
+              const newDate = moment(date).subtract(1, view === 'day' ? 'day' : view === 'week' ? 'week' : 'month').toDate()
+              setDate(newDate)
+            }}>
               ←
             </Button>
-            <Button
-              variant="outline"
-              onClick={() => setDate(new Date())}
-            >
+            <Button size="sm" variant="ghost" onClick={() => setDate(new Date())}>
               Hoy
             </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                const newDate = moment(date).add(1, view === 'day' ? 'day' : view === 'week' ? 'week' : 'month').toDate()
-                setDate(newDate)
-              }}
-            >
+            <Button size="sm" variant="ghost" onClick={() => {
+              const newDate = moment(date).add(1, view === 'day' ? 'day' : view === 'week' ? 'week' : 'month').toDate()
+              setDate(newDate)
+            }}>
               →
             </Button>
           </div>
+          <span className="text-sm font-medium text-gray-900 ml-2">
+            {view === 'day' && moment(date).format('dddd, D MMMM YYYY')}
+            {view === 'week' && `${moment(date).startOf('week').format('D MMM')} - ${moment(date).endOf('week').format('D MMM YYYY')}`}
+            {view === 'month' && moment(date).format('MMMM YYYY')}
+          </span>
         </div>
 
-        {/* Leyenda de estados */}
-        <div className="flex flex-wrap gap-4 mb-6">
-          <div className="flex items-center space-x-2 bg-blue-50 px-3 py-2 rounded-lg">
-            <div className="w-3 h-3 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full"></div>
-            <span className="text-sm font-medium text-blue-700">Programado</span>
-          </div>
-          <div className="flex items-center space-x-2 bg-green-50 px-3 py-2 rounded-lg">
-            <div className="w-3 h-3 bg-gradient-to-r from-green-500 to-green-600 rounded-full"></div>
-            <span className="text-sm font-medium text-green-700">Confirmado</span>
-          </div>
-          <div className="flex items-center space-x-2 bg-orange-50 px-3 py-2 rounded-lg">
-            <div className="w-3 h-3 bg-gradient-to-r from-orange-500 to-orange-600 rounded-full"></div>
-            <span className="text-sm font-medium text-orange-700">En Progreso</span>
-          </div>
-          <div className="flex items-center space-x-2 bg-purple-50 px-3 py-2 rounded-lg">
-            <div className="w-3 h-3 bg-gradient-to-r from-purple-500 to-purple-600 rounded-full"></div>
-            <span className="text-sm font-medium text-purple-700">Completado</span>
-          </div>
-          <div className="flex items-center space-x-2 bg-red-50 px-3 py-2 rounded-lg">
-            <div className="w-3 h-3 bg-gradient-to-r from-red-500 to-red-600 rounded-full"></div>
-            <span className="text-sm font-medium text-red-700">Cancelado</span>
-          </div>
+        {/* Vista */}
+        <div className="flex gap-0.5 bg-gray-50 p-0.5 rounded">
+          <Button size="sm" variant={view === 'day' ? 'default' : 'ghost'} onClick={() => setView('day')}>
+            Día
+          </Button>
+          <Button size="sm" variant={view === 'week' ? 'default' : 'ghost'} onClick={() => setView('week')}>
+            Semana
+          </Button>
+          <Button size="sm" variant={view === 'month' ? 'default' : 'ghost'} onClick={() => setView('month')}>
+            Mes
+          </Button>
         </div>
       </div>
 
+      {/* Leyenda de estados */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex gap-3">
+          <span className="flex items-center gap-1 text-[10px] text-gray-500">
+            <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span> Programado
+          </span>
+          <span className="flex items-center gap-1 text-[10px] text-gray-500">
+            <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span> Confirmado
+          </span>
+          <span className="flex items-center gap-1 text-[10px] text-gray-500">
+            <span className="w-1.5 h-1.5 bg-orange-500 rounded-full"></span> En Progreso
+          </span>
+          <span className="flex items-center gap-1 text-[10px] text-gray-500">
+            <span className="w-1.5 h-1.5 bg-purple-500 rounded-full"></span> Completado
+          </span>
+          <span className="flex items-center gap-1 text-[10px] text-gray-500">
+            <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span> Cancelado
+          </span>
+        </div>
+        <p className="text-[10px] text-gray-400">Clic en horario para nueva cita</p>
+      </div>
+
       {/* Calendario */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden" style={{ height: '700px' }}>
+      <div className="bg-white border border-gray-100 rounded overflow-hidden" style={{ height: '600px' }}>
         <Calendar
             localizer={localizer}
             events={events}
@@ -594,14 +822,15 @@ export default function CalendarPage() {
             showMultiDayTimes
             step={15}
             timeslots={4}
+            toolbar={false}
             min={moment().hour(6).minute(0).toDate()}
             max={moment().hour(22).minute(0).toDate()}
             messages={{
               next: "Siguiente",
-              previous: "Anterior", 
+              previous: "Anterior",
               today: "Hoy",
               month: "Mes",
-              week: "Semana", 
+              week: "Semana",
               day: "Día",
               agenda: "Agenda",
               date: "Fecha",
@@ -612,7 +841,7 @@ export default function CalendarPage() {
             }}
             formats={{
               dayHeaderFormat: 'dddd DD/MM',
-              dayRangeHeaderFormat: ({ start, end }) => 
+              dayRangeHeaderFormat: ({ start, end }) =>
                 `${moment(start).format('DD/MM')} - ${moment(end).format('DD/MM YYYY')}`,
               monthHeaderFormat: 'MMMM YYYY',
               timeGutterFormat: 'HH:mm',
@@ -627,136 +856,136 @@ export default function CalendarPage() {
         setShowCreateModal(open)
         if (!open) resetForm()
       }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>📅 Crear Nuevo Booking</DialogTitle>
-            <DialogDescription>
-              Agrupa Cliente + Servicio + Staff + Recursos en una cita
+            <DialogTitle className="text-sm font-medium">
+              {isEditMode ? 'Editar Cita' : 'Nueva Cita'}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              {isEditMode
+                ? `Editando cita del ${moment(formData.scheduledAt).format('ddd D MMM, HH:mm')}`
+                : selectedSlot && moment(selectedSlot.start).format('ddd D MMM, HH:mm')
+              }
             </DialogDescription>
-            {selectedSlot && (
-              <div className="text-blue-600 font-medium text-sm mb-4">
-                📅 {moment(selectedSlot.start).format('LLLL')}
-              </div>
-            )}
           </DialogHeader>
-          
-          <form onSubmit={handleCreateAppointment} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="customerId">Cliente *</Label>
-                <Select value={formData.customerId} onValueChange={(value) => setFormData({...formData, customerId: value})}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar cliente" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {customers && customers.length > 0 ? customers.map((customer) => (
-                      <SelectItem key={customer.id} value={customer.id}>
-                        {customer.name} - {customer.phone}
-                      </SelectItem>
-                    )) : (
-                      <div className="text-gray-500 px-2 py-1 text-sm">No hay clientes disponibles</div>
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
 
-              <div>
-                <Label htmlFor="serviceId">Servicio *</Label>
-                <Select value={formData.serviceId} onValueChange={(value) => setFormData({...formData, serviceId: value})}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar servicio" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {services && services.length > 0 ? services.filter(s => s.isActive).map((service) => (
-                      <SelectItem key={service.id} value={service.id}>
-                        <div className="flex items-center space-x-2">
-                          <div 
-                            className="w-3 h-3 rounded-full" 
-                            style={{ backgroundColor: service.color }}
-                          />
-                          <span>{service.name}</span>
-                        </div>
-                      </SelectItem>
-                    )) : (
-                      <div className="text-gray-500 px-2 py-1 text-sm">No hay servicios disponibles</div>
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
+          <form onSubmit={handleSubmitAppointment} className="space-y-3">
+            <div>
+              <Label htmlFor="customerId">Cliente *</Label>
+              <Select value={formData.customerId} onValueChange={(value) => setFormData({...formData, customerId: value})}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar cliente" />
+                </SelectTrigger>
+                <SelectContent>
+                  {customers && customers.length > 0 ? customers.map((customer) => (
+                    <SelectItem key={customer.id} value={customer.id}>
+                      {customer.name} - {customer.phone}
+                    </SelectItem>
+                  )) : (
+                    <div className="text-gray-500 px-2 py-1 text-sm">No hay clientes disponibles</div>
+                  )}
+                </SelectContent>
+              </Select>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="staffId">Conductor + Vehículo *</Label>
+              <Select
+                value={formData.staffId || 'none'}
+                onValueChange={(value) => {
+                  const selectedMember = staff.find(s => s.id === value)
+                  setFormData({
+                    ...formData,
+                    staffId: value === 'none' ? '' : value,
+                    equipmentType: selectedMember?.equipmentType || 'RAMPA'
+                  })
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar conductor" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin asignar</SelectItem>
+                  {staff && staff.length > 0 ? staff.filter(s => s.isActive && s.status === 'AVAILABLE').map((member) => (
+                    <SelectItem key={member.id} value={member.id}>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-2.5 h-2.5 rounded-full"
+                          style={{ backgroundColor: member.color || '#3B82F6' }}
+                        />
+                        <span>{member.name}</span>
+                        {member.licensePlate && (
+                          <span className="text-gray-400 text-xs">({member.licensePlate})</span>
+                        )}
+                        <Badge variant="outline" className="text-[10px] px-1 py-0">
+                          {member.equipmentType === 'ROBOTICA_PLEGABLE' ? 'Robótica' : 'Rampa'}
+                        </Badge>
+                      </div>
+                    </SelectItem>
+                  )) : null}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Show selected equipment type */}
+            {formData.staffId && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-100 rounded text-xs">
+                <Car className="w-3.5 h-3.5 text-blue-600" />
+                <span className="text-blue-700">
+                  Tipo de equipo: <strong>{formData.equipmentType === 'ROBOTICA_PLEGABLE' ? 'Silla Robótica/Plegable' : 'Vehículo con Rampa'}</strong>
+                </span>
+              </div>
+            )}
+
+            {/* Direcciones */}
+            <div className="bg-gray-50 p-3 rounded border border-gray-100 space-y-3">
+              <h3 className="text-xs font-semibold text-gray-700 flex items-center gap-2">
+                <MapPin className="w-3.5 h-3.5" />
+                Direcciones
+              </h3>
+
               <div>
-                <Label htmlFor="staffId">Asignar Personal</Label>
-                <Select value={formData.staffId || 'none'} onValueChange={(value) => setFormData({...formData, staffId: value === 'none' ? '' : value})}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar personal (opcional)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Sin personal asignado</SelectItem>
-                    {staff && staff.length > 0 ? staff.filter(s => s.isActive && s.status === 'AVAILABLE').map((member) => (
-                      <SelectItem key={member.id} value={member.id}>
-                        <div className="flex items-center justify-between w-full">
-                          <span>{member.name}</span>
-                          <Badge variant="outline" className="ml-2">{member.type}</Badge>
-                        </div>
-                      </SelectItem>
-                    )) : null}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="originAddress">Direccion de Origen (Recoger) *</Label>
+                <Input
+                  id="originAddress"
+                  value={formData.originAddress}
+                  onChange={(e) => setFormData({...formData, originAddress: e.target.value})}
+                  placeholder="Ej: Calle 10 #45-23, Medellin"
+                  required
+                />
               </div>
 
               <div>
-                <Label htmlFor="resourceId">Asignar Recurso</Label>
-                <Select value={formData.resourceId || 'none'} onValueChange={(value) => setFormData({...formData, resourceId: value === 'none' ? '' : value})}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar recurso (opcional)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Sin recurso asignado</SelectItem>
-                    {resources && resources.length > 0 ? resources.filter(r => r.isActive).map((resource) => (
-                      <SelectItem key={resource.id} value={resource.id}>
-                        <div className="flex items-center space-x-2">
-                          <div 
-                            className="w-3 h-3 rounded-full" 
-                            style={{ backgroundColor: resource.color }}
-                          />
-                          <span>{resource.name} ({resource.type})</span>
-                        </div>
-                      </SelectItem>
-                    )) : null}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="destinationAddress">Direccion de Destino (Llevar) *</Label>
+                <Input
+                  id="destinationAddress"
+                  value={formData.destinationAddress}
+                  onChange={(e) => setFormData({...formData, destinationAddress: e.target.value})}
+                  placeholder="Ej: Carrera 70 #12-34, Envigado"
+                  required
+                />
               </div>
             </div>
 
             {/* Availability Status */}
-            {(formData.staffId || formData.resourceId) && formData.scheduledAt && (
-              <div className="p-4 rounded-lg border">
+            {formData.staffId && formData.scheduledAt && (
+              <div className="p-3 rounded border border-gray-100">
                 <div className="flex items-center space-x-2">
                   {isCheckingAvailability ? (
                     <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                      <span className="text-sm text-gray-600">Verificando disponibilidad...</span>
+                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600"></div>
+                      <span className="text-xs text-gray-600">Verificando disponibilidad...</span>
                     </>
                   ) : availabilityStatus ? (
                     availabilityStatus.available ? (
                       <>
-                        <div className="w-4 h-4 bg-green-500 rounded-full"></div>
-                        <span className="text-sm text-green-700 font-medium">✓ Horario disponible</span>
+                        <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                        <span className="text-xs text-green-700 font-medium">Horario disponible</span>
                       </>
                     ) : (
                       <>
-                        <div className="w-4 h-4 bg-red-500 rounded-full"></div>
-                        <div className="text-sm text-red-700">
-                          <p className="font-medium">⚠️ Conflicto de horario</p>
-                          {!availabilityStatus.staff.available && (
-                            <p className="text-xs">Personal ocupado</p>
-                          )}
-                          {!availabilityStatus.resource.available && (
-                            <p className="text-xs">Recurso ocupado</p>
-                          )}
-                        </div>
+                        <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                        <span className="text-xs text-red-700 font-medium">Conductor ocupado en ese horario</span>
                       </>
                     )
                   ) : null}
@@ -766,13 +995,17 @@ export default function CalendarPage() {
 
 
             {/* Sistema de Cotización */}
-            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 space-y-4">
-              <div className="flex items-center space-x-2 mb-4">
-                <span className="text-lg">🧮</span>
-                <h3 className="font-medium text-blue-900">Configuración de Tarifa</h3>
+            <div className="bg-gray-50 p-3 rounded border border-gray-100 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-semibold text-gray-700">Configuración de Tarifa</h3>
+                {(formData.originAddress || formData.destinationAddress) && (
+                  <span className="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
+                    Auto-detectado
+                  </span>
+                )}
               </div>
-              
-              <div className="grid grid-cols-2 gap-4">
+
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label htmlFor="zoneSlug">Zona</Label>
                   <Select value={formData.zoneSlug} onValueChange={(value) => setFormData({...formData, zoneSlug: value})}>
@@ -800,21 +1033,8 @@ export default function CalendarPage() {
                   </Select>
                 </div>
 
-                <div>
-                  <Label htmlFor="equipmentType">Tipo de Equipo</Label>
-                  <Select value={formData.equipmentType} onValueChange={(value) => setFormData({...formData, equipmentType: value})}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="RAMPA">Vehículo con Rampa</SelectItem>
-                      <SelectItem value="ROBOTICA_PLEGABLE">Silla Robótica/Plegable</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
                 {formData.zoneSlug !== 'medellin' && formData.zoneSlug !== 'fuera-ciudad' && (
-                  <div>
+                  <div className="col-span-2">
                     <Label htmlFor="originType">Tipo de Origen</Label>
                     <Select value={formData.originType} onValueChange={(value) => setFormData({...formData, originType: value})}>
                       <SelectTrigger>
@@ -878,27 +1098,23 @@ export default function CalendarPage() {
 
             {/* Quote Breakdown */}
             {showQuoteBreakdown && currentQuote && (
-              <div className="bg-gray-50 p-4 rounded-lg border">
-                <div className="flex items-center space-x-2 mb-3">
-                  <span className="text-lg">📋</span>
-                  <h3 className="font-medium text-gray-900">Desglose de Precio</h3>
-                </div>
-                
-                <div className="space-y-2">
+              <div className="bg-gray-50 p-3 rounded border border-gray-100">
+                <h3 className="text-xs font-semibold text-gray-700 mb-2">Desglose</h3>
+                <div className="space-y-1">
                   {Array.isArray(currentQuote?.breakdown) ? currentQuote.breakdown.map((item: any, index: number) => (
-                    <div key={index} className="flex justify-between items-center text-sm">
-                      <span className="text-gray-700">
-                        {item?.item || 'Item desconocido'}
+                    <div key={index} className="flex justify-between items-center text-xs">
+                      <span className="text-gray-600">
+                        {item?.item || 'Item'}
                         {item?.quantity && ` (x${item.quantity})`}
                       </span>
-                      <span className="font-medium">${(item?.subtotal || 0).toLocaleString()}</span>
+                      <span className="font-medium text-gray-900">${(item?.subtotal || 0).toLocaleString()}</span>
                     </div>
                   )) : (
-                    <div className="text-sm text-gray-500">No hay desglose disponible</div>
+                    <div className="text-xs text-gray-500">No disponible</div>
                   )}
-                  <div className="border-t pt-2 flex justify-between items-center font-semibold">
-                    <span>Total</span>
-                    <span className="text-green-600">${(currentQuote?.totalPrice || 0).toLocaleString()}</span>
+                  <div className="border-t border-gray-200 pt-1.5 mt-1.5 flex justify-between items-center">
+                    <span className="text-xs font-medium text-gray-700">Total</span>
+                    <span className="text-sm font-semibold text-gray-900">${(currentQuote?.totalPrice || 0).toLocaleString()}</span>
                   </div>
                 </div>
               </div>
@@ -926,24 +1142,21 @@ export default function CalendarPage() {
               />
             </div>
 
-            {/* Precio Estimado estilo Uber */}
+            {/* Precio Estimado */}
             {formData.estimatedAmount > 0 && (
-              <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-lg border border-green-200">
+              <div className="bg-green-50 p-3 rounded border border-green-100">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-green-600 text-lg">💰</span>
-                    <div>
-                      <p className="font-semibold text-green-800">Tarifa Estimada</p>
-                      <p className="text-xs text-green-600">
-                        {formData.zoneSlug && formData.tripType && formData.equipmentType ? 
-                          'Basada en zona y configuración' : 
-                          'Configura los parámetros de cotización'
-                        }
-                      </p>
-                    </div>
+                  <div>
+                    <p className="text-xs font-medium text-green-700">Tarifa Estimada</p>
+                    <p className="text-xs text-green-600">
+                      {formData.zoneSlug && formData.tripType && formData.equipmentType ?
+                        'Basada en configuracion' :
+                        'Configure parametros'
+                      }
+                    </p>
                   </div>
                   <div className="text-right">
-                    <span className="text-2xl font-bold text-green-700">
+                    <span className="text-lg font-semibold text-green-700">
                       ${formData.estimatedAmount.toLocaleString()}
                     </span>
                     <p className="text-xs text-green-600">COP</p>
@@ -953,25 +1166,21 @@ export default function CalendarPage() {
             )}
 
             {/* Indicador cuando se está calculando */}
-            {formData.zoneSlug && formData.serviceId && formData.estimatedAmount === 0 && (
-              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                <div className="flex items-center space-x-2">
-                  <div className="animate-pulse w-4 h-4 bg-gray-400 rounded-full"></div>
-                  <span className="text-gray-600">Calculando tarifa...</span>
+            {formData.zoneSlug && formData.staffId && formData.estimatedAmount === 0 && (
+              <div className="bg-gray-50 p-3 rounded border border-gray-100">
+                <div className="flex items-center gap-2">
+                  <div className="animate-pulse w-3 h-3 bg-gray-300 rounded-full"></div>
+                  <span className="text-xs text-gray-500">Calculando tarifa...</span>
                 </div>
               </div>
             )}
 
-            <div className="flex justify-end space-x-3 pt-4">
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={() => setShowCreateModal(false)}
-              >
+            <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
+              <Button type="button" variant="ghost" size="sm" onClick={() => setShowCreateModal(false)}>
                 Cancelar
               </Button>
-              <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-                Crear Cita
+              <Button type="submit" size="sm">
+                {isEditMode ? 'Guardar Cambios' : 'Crear Cita'}
               </Button>
             </div>
           </form>
@@ -979,140 +1188,108 @@ export default function CalendarPage() {
       </Dialog>
 
       {/* Modal de detalles de cita */}
-      <Dialog open={showDetailsModal} onOpenChange={setShowDetailsModal}>
-        <DialogContent className="max-w-2xl">
+      <Dialog open={showDetailsModal} onOpenChange={(open) => {
+        setShowDetailsModal(open)
+        if (!open) setIsEditMode(false)
+      }}>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Detalles de la Cita</DialogTitle>
-            <DialogDescription>
-              Información completa de la cita programada
+            <DialogTitle className="text-sm font-medium">
+              {isEditMode ? 'Editar Cita' : 'Detalles de Cita'}
+            </DialogTitle>
+            <DialogDescription className="text-xs flex items-center gap-2">
+              {selectedEvent && moment(selectedEvent.start).format('ddd D MMM, HH:mm')}
+              {selectedEvent && !isEditMode && (
+                <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">
+                  {getStatusLabel(selectedEvent.status)}
+                </span>
+              )}
             </DialogDescription>
           </DialogHeader>
-          
-          {selectedEvent && (
-            <div className="space-y-6">
-              {/* Header con información principal */}
-              <div className="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
-                <h3 className="font-semibold text-blue-900 mb-2">📅 Booking Agrupado</h3>
-                <p className="text-blue-700 text-sm">Cliente + Servicio + Staff + Recursos</p>
+
+          {selectedEvent && !isEditMode && (
+            <div className="space-y-4">
+              {/* Info principal */}
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                <div className="flex items-center gap-3">
+                  <User className="w-4 h-4 text-gray-400" />
+                  <span className="text-sm font-medium text-gray-900">{selectedEvent.customerName}</span>
+                </div>
+                <span className="text-sm font-semibold text-gray-900">${selectedEvent.totalAmount.toLocaleString()}</span>
               </div>
 
-              {/* Información del Booking */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Cliente */}
-                <div className="space-y-3">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-                      <span className="text-purple-600 text-sm font-bold">👤</span>
-                    </div>
-                    <div>
-                      <Label className="text-xs font-medium text-gray-500">CLIENTE</Label>
-                      <p className="text-lg font-semibold">{selectedEvent.customerName}</p>
-                    </div>
-                  </div>
+              {/* Ruta */}
+              <div className="flex gap-3">
+                <div className="flex flex-col items-center py-1">
+                  <div className="w-2 h-2 rounded-full bg-gray-900"></div>
+                  <div className="w-px h-full bg-gray-300 my-1 min-h-[20px]"></div>
+                  <div className="w-2 h-2 rounded-full border-2 border-gray-900"></div>
                 </div>
-
-                {/* Servicio */}
-                <div className="space-y-3">
-                  <div className="flex items-center space-x-2">
-                    <div 
-                      className="w-8 h-8 rounded-full flex items-center justify-center"
-                      style={{ backgroundColor: selectedEvent.serviceColor }}
-                    >
-                      <span className="text-white text-sm font-bold">🔧</span>
-                    </div>
-                    <div>
-                      <Label className="text-xs font-medium text-gray-500">SERVICIO</Label>
-                      <p className="text-lg font-semibold">{selectedEvent.serviceName}</p>
-                      <p className="text-sm text-gray-600">{services.find(s => s.id === selectedEvent.serviceId)?.durationMinutes || 60} min</p>
-                    </div>
+                <div className="flex-1 space-y-3">
+                  <div>
+                    <p className="text-[10px] text-gray-400 uppercase">Origen</p>
+                    <p className="text-sm text-gray-900">{selectedEvent.originAddress || 'No especificado'}</p>
                   </div>
-                </div>
-
-                {/* Staff */}
-                <div className="space-y-3">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                      <span className="text-green-600 text-sm font-bold">👨‍💼</span>
-                    </div>
-                    <div>
-                      <Label className="text-xs font-medium text-gray-500">PERSONAL</Label>
-                      <p className="text-lg font-semibold">{selectedEvent.staffName || 'Sin asignar'}</p>
-                      {!selectedEvent.staffName && (
-                        <p className="text-xs text-amber-600">⚠️ Pendiente asignación</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Recurso */}
-                <div className="space-y-3">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
-                      <span className="text-orange-600 text-sm font-bold">🚗</span>
-                    </div>
-                    <div>
-                      <Label className="text-xs font-medium text-gray-500">RECURSO</Label>
-                      <p className="text-lg font-semibold">{selectedEvent.resourceName || 'Sin asignar'}</p>
-                      {!selectedEvent.resourceName && (
-                        <p className="text-xs text-amber-600">⚠️ Sin recurso específico</p>
-                      )}
-                    </div>
+                  <div>
+                    <p className="text-[10px] text-gray-400 uppercase">Destino</p>
+                    <p className="text-sm text-gray-900">{selectedEvent.destinationAddress || 'No especificado'}</p>
                   </div>
                 </div>
               </div>
 
-              {/* Estado y detalles */}
-              <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+              {/* Detalles */}
+              <div className="grid grid-cols-2 gap-4 py-3 border-t border-b border-gray-100">
                 <div>
-                  <Label className="text-sm font-medium text-gray-500">Estado</Label>
-                  <Badge className={
-                    selectedEvent.status === 'CONFIRMED' ? 'bg-green-100 text-green-800' :
-                    selectedEvent.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
-                    selectedEvent.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-800' :
-                    'bg-gray-100 text-gray-800'
-                  }>
-                    {selectedEvent.status}
-                  </Badge>
+                  <p className="text-[10px] text-gray-500 uppercase mb-1">Conductor</p>
+                  <p className="text-sm text-gray-900">{selectedEvent.staffName || 'Sin asignar'}</p>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium text-gray-500">ID de Cita</Label>
-                  <p className="text-xs text-gray-500 font-mono">{selectedEvent.appointmentId}</p>
-                </div>
-              </div>
-
-              <div>
-                <Label className="text-sm font-medium text-gray-500">Origen</Label>
-                <p>{selectedEvent.originAddress}</p>
-              </div>
-
-              <div>
-                <Label className="text-sm font-medium text-gray-500">Destino</Label>
-                <p>{selectedEvent.destinationAddress}</p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-sm font-medium text-gray-500">Programado</Label>
-                  <p>{moment(selectedEvent.start).format('LLLL')}</p>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium text-gray-500">Monto Total</Label>
-                  <p className="text-xl font-bold text-green-600">
-                    ${selectedEvent.totalAmount.toLocaleString()} COP
+                  <p className="text-[10px] text-gray-500 uppercase mb-1">Equipo</p>
+                  <p className="text-sm text-gray-900">
+                    {selectedEvent.equipmentType === 'ROBOTICA_PLEGABLE' ? 'Robótica' : 'Rampa'}
                   </p>
                 </div>
               </div>
 
-              <div className="flex justify-end space-x-3 pt-4">
-                <Button variant="outline" onClick={() => setShowDetailsModal(false)}>
+              {/* Cambiar estado */}
+              {selectedEvent.status !== 'COMPLETED' && selectedEvent.status !== 'CANCELLED' && (
+                <div>
+                  <p className="text-[10px] text-gray-500 uppercase mb-2">Cambiar Estado</p>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedEvent.status !== 'CONFIRMED' && (
+                      <Button size="sm" variant="outline" className="text-xs" onClick={() => handleStatusChange('CONFIRMED')}>
+                        Confirmar
+                      </Button>
+                    )}
+                    {selectedEvent.status === 'CONFIRMED' && (
+                      <Button size="sm" variant="outline" className="text-xs" onClick={() => handleStatusChange('IN_PROGRESS')}>
+                        Iniciar
+                      </Button>
+                    )}
+                    {selectedEvent.status === 'IN_PROGRESS' && (
+                      <Button size="sm" variant="outline" className="text-xs" onClick={() => handleStatusChange('COMPLETED')}>
+                        Completar
+                      </Button>
+                    )}
+                    <Button size="sm" variant="ghost" className="text-xs text-gray-500" onClick={handleCancelAppointment}>
+                      Cancelar Cita
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Botones */}
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="ghost" size="sm" onClick={() => setShowDetailsModal(false)}>
                   Cerrar
                 </Button>
-                <Button className="bg-blue-600 hover:bg-blue-700">
-                  Editar Cita
+                <Button size="sm" onClick={handleOpenEdit}>
+                  Editar
                 </Button>
               </div>
             </div>
           )}
+
         </DialogContent>
       </Dialog>
     </div>

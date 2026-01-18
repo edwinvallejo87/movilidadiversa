@@ -1,0 +1,71 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+
+interface RouteParams {
+  params: Promise<{ id: string }>
+}
+
+export async function GET(request: NextRequest, { params }: RouteParams) {
+  try {
+    const { id } = await params
+
+    const rate = await prisma.rate.findUnique({
+      where: { id },
+      include: { zone: true }
+    })
+
+    if (!rate) {
+      return NextResponse.json(
+        { error: 'Rate not found' },
+        { status: 404 }
+      )
+    }
+
+    return NextResponse.json(rate)
+  } catch (error) {
+    console.error('Error fetching rate:', error)
+    return NextResponse.json(
+      { error: 'Error fetching rate' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function PUT(request: NextRequest, { params }: RouteParams) {
+  try {
+    const { id } = await params
+    const body = await request.json()
+    const { price } = body
+
+    const rate = await prisma.rate.update({
+      where: { id },
+      data: { price }
+    })
+
+    return NextResponse.json(rate)
+  } catch (error) {
+    console.error('Error updating rate:', error)
+    return NextResponse.json(
+      { error: 'Error updating rate' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function DELETE(request: NextRequest, { params }: RouteParams) {
+  try {
+    const { id } = await params
+
+    await prisma.rate.delete({
+      where: { id }
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Error deleting rate:', error)
+    return NextResponse.json(
+      { error: 'Error deleting rate' },
+      { status: 500 }
+    )
+  }
+}

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 
 const CreateZoneSchema = z.object({
@@ -10,39 +10,14 @@ const CreateZoneSchema = z.object({
 
 export async function GET() {
   try {
-    // Mock zones data for now
-    const zones = [
-      {
-        id: 'medellin',
-        name: 'Medellín',
-        slug: 'medellin',
-        description: 'Área metropolitana de Medellín',
-        isActive: true,
+    const zones = await prisma.zone.findMany({
+      orderBy: { name: 'asc' },
+      include: {
         _count: {
-          rates: 8
-        }
-      },
-      {
-        id: 'itagui',
-        name: 'Itagüí', 
-        slug: 'itagui',
-        description: 'Municipio de Itagüí',
-        isActive: true,
-        _count: {
-          rates: 4
-        }
-      },
-      {
-        id: 'envigado',
-        name: 'Envigado',
-        slug: 'envigado', 
-        description: 'Municipio de Envigado',
-        isActive: true,
-        _count: {
-          rates: 4
+          select: { rates: true }
         }
       }
-    ]
+    })
 
     return NextResponse.json(zones)
   } catch (error) {
@@ -59,11 +34,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = CreateZoneSchema.parse(body)
 
-    // Verificar que no exista una zona con el mismo slug
-    const existingZone = await db.zone.findUnique({
-      where: {
-        slug: validatedData.slug
-      }
+    const existingZone = await prisma.zone.findUnique({
+      where: { slug: validatedData.slug }
     })
 
     if (existingZone) {
@@ -73,8 +45,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const zone = await db.zone.create({
-      data: validatedData
+    const zone = await prisma.zone.create({
+      data: validatedData,
+      include: {
+        _count: {
+          select: { rates: true }
+        }
+      }
     })
 
     return NextResponse.json(zone)

@@ -3,10 +3,11 @@ import { db } from '@/lib/db'
 import { z } from 'zod'
 
 const CreateAdminAppointmentSchema = z.object({
-  customerId: z.string().cuid(),
-  serviceId: z.string().cuid(),
-  staffId: z.string().cuid().optional(),
-  resourceId: z.string().cuid().optional(),
+  customerId: z.string().min(1),
+  serviceId: z.string().min(1).optional(),  // Optional - legacy
+  staffId: z.string().min(1).optional(),
+  resourceId: z.string().min(1).optional(),
+  equipmentType: z.enum(['RAMPA', 'ROBOTICA_PLEGABLE']).optional().default('RAMPA'),
   scheduledAt: z.string().datetime(),
   originAddress: z.string().optional(),
   destinationAddress: z.string().optional(),
@@ -16,7 +17,13 @@ const CreateAdminAppointmentSchema = z.object({
   destinationLng: z.number().optional(),
   distanceKm: z.number().optional(),
   estimatedAmount: z.number().optional(),
-  notes: z.string().optional()
+  notes: z.string().optional(),
+  pricingBreakdown: z.array(z.object({
+    item: z.string(),
+    quantity: z.number().optional(),
+    unitPrice: z.number(),
+    subtotal: z.number()
+  })).optional()
 })
 
 export async function POST(request: NextRequest) {
@@ -24,7 +31,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const appointmentData = CreateAdminAppointmentSchema.parse(body)
 
-    // Verificar que el customer y service existen
+    // Verify customer exists
     const customer = await db.customer.findUnique({
       where: { id: appointmentData.customerId }
     })
@@ -36,52 +43,32 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const service = await db.service.findUnique({
-      where: { id: appointmentData.serviceId }
-    })
-
-    if (!service) {
-      return NextResponse.json(
-        { error: 'Servicio no encontrado' },
-        { status: 404 }
-      )
-    }
-
-    // Verificar staff si se proporciona
+    // Verify and get staff if provided (to get equipment type)
+    let staffMember = null
     if (appointmentData.staffId) {
-      const staff = await db.staff.findUnique({
+      staffMember = await db.staff.findUnique({
         where: { id: appointmentData.staffId }
       })
 
-      if (!staff) {
+      if (!staffMember) {
         return NextResponse.json(
-          { error: 'Staff no encontrado' },
+          { error: 'Conductor no encontrado' },
           { status: 404 }
         )
       }
     }
 
-    // Verificar resource si se proporciona
-    if (appointmentData.resourceId) {
-      const resource = await db.resource.findUnique({
-        where: { id: appointmentData.resourceId }
-      })
-
-      if (!resource) {
-        return NextResponse.json(
-          { error: 'Recurso no encontrado' },
-          { status: 404 }
-        )
-      }
-    }
+    // Get equipment type from staff or use provided/default
+    const equipmentType = staffMember?.equipmentType || appointmentData.equipmentType || 'RAMPA'
 
     // Crear la cita
     const appointment = await db.appointment.create({
       data: {
         customerId: appointmentData.customerId,
-        serviceId: appointmentData.serviceId,
+        serviceId: appointmentData.serviceId || null,
         staffId: appointmentData.staffId,
         resourceId: appointmentData.resourceId,
+        equipmentType,
         scheduledAt: new Date(appointmentData.scheduledAt),
         originAddress: appointmentData.originAddress || 'Sin dirección',
         destinationAddress: appointmentData.destinationAddress || 'Sin dirección',
@@ -90,11 +77,15 @@ export async function POST(request: NextRequest) {
         destinationLat: appointmentData.destinationLat || 0,
         destinationLng: appointmentData.destinationLng || 0,
         distanceKm: appointmentData.distanceKm || 0,
-        estimatedDuration: service.durationMinutes,
+        estimatedDuration: 60,  // Default duration
         notes: appointmentData.notes,
         status: 'SCHEDULED',
-        totalAmount: appointmentData.estimatedAmount || service.basePrice || 0,
-        pricingSnapshot: JSON.stringify({ method: 'admin_manual', basePrice: service.basePrice })
+        totalAmount: appointmentData.estimatedAmount || 0,
+        pricingSnapshot: JSON.stringify({
+          method: appointmentData.pricingBreakdown ? 'quote_calculation' : 'admin_manual',
+          equipmentType,
+          breakdown: appointmentData.pricingBreakdown || null
+        })
       },
       include: {
         customer: {
@@ -117,7 +108,8 @@ export async function POST(request: NextRequest) {
           select: {
             id: true,
             name: true,
-            color: true
+            color: true,
+            equipmentType: true
           }
         },
         resource: {
@@ -135,10 +127,10 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Error creating admin appointment:', error)
-    
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { 
+        {
           error: 'Datos de cita inválidos',
           details: error.issues
         },
@@ -189,7 +181,8 @@ export async function GET(request: NextRequest) {
           select: {
             id: true,
             name: true,
-            color: true
+            color: true,
+            equipmentType: true
           }
         },
         resource: {

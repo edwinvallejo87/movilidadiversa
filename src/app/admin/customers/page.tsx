@@ -11,7 +11,8 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { PlusCircle, Edit, Trash2, Search, User, Phone, Mail } from 'lucide-react'
+import { PlusCircle, Edit, Trash2, Search, User, Phone, Mail, Accessibility, PersonStanding, Activity } from 'lucide-react'
+import { PageHeader } from '@/components/admin'
 import { toast } from 'sonner'
 
 interface Customer {
@@ -65,7 +66,8 @@ export default function CustomersPage() {
         throw new Error(`HTTP ${response.status}`)
       }
       const data = await response.json()
-      setCustomers(Array.isArray(data?.customers) ? data.customers : [])
+      // Handle both array and { customers: [...] } format
+      setCustomers(Array.isArray(data) ? data : (data?.customers || []))
     } catch (error) {
       console.error('Error loading customers:', error)
       toast.error('Error al cargar los clientes - Verifica la configuración de autenticación')
@@ -183,10 +185,10 @@ export default function CustomersPage() {
 
   const getMobilityAidIcon = (aid: string) => {
     switch (aid) {
-      case 'WHEELCHAIR': return '♿'
-      case 'WALKER': return '🚶‍♂️'
-      case 'CRUTCHES': return '🩹'
-      default: return ''
+      case 'WHEELCHAIR': return <Accessibility className="w-4 h-4 text-blue-600" />
+      case 'WALKER': return <PersonStanding className="w-4 h-4 text-orange-600" />
+      case 'CRUTCHES': return <Activity className="w-4 h-4 text-purple-600" />
+      default: return null
     }
   }
 
@@ -205,14 +207,13 @@ export default function CustomersPage() {
   }
 
   return (
-    <div className="main-content">
-      <div className="page-header">
-        <h1 className="page-title">Gestión de Clientes</h1>
-        <p className="page-subtitle">Administra la base de datos de clientes</p>
-      </div>
+    <div>
+      <PageHeader
+        title="Gestion de Clientes"
+        description="Administra la base de datos de clientes"
+      />
 
-      <div className="flex justify-end mb-6">
-        
+      <div className="flex justify-end mb-4">
         <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
           setIsCreateDialogOpen(open)
           if (!open) {
@@ -221,10 +222,10 @@ export default function CustomersPage() {
           }
         }}>
           <DialogTrigger asChild>
-            <button className="pro-btn pro-btn-primary">
+            <Button>
               <PlusCircle className="mr-2 h-4 w-4" />
               Agregar Cliente
-            </button>
+            </Button>
           </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
@@ -360,140 +361,140 @@ export default function CustomersPage() {
                 <Label htmlFor="active">Cliente activo</Label>
               </div>
 
-              <div className="flex justify-end space-x-2 pt-4">
-                <button type="button" className="pro-btn pro-btn-secondary" onClick={() => setIsCreateDialogOpen(false)}>
+              <div className="flex justify-end gap-2 pt-4">
+                <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
                   Cancelar
-                </button>
-                <button type="submit" className="pro-btn pro-btn-primary">
+                </Button>
+                <Button type="submit">
                   {editingCustomer ? 'Actualizar' : 'Crear'}
-                </button>
+                </Button>
               </div>
             </form>
           </DialogContent>
         </Dialog>
       </div>
 
-      <div className="pro-card mb-6">
-        <div className="card-content">
-          <div className="flex space-x-2">
-            <input
-              className="form-input flex-1"
-              placeholder="Buscar por nombre, email, teléfono o documento..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-            />
-            <button className="pro-btn pro-btn-primary" onClick={handleSearch}>
-              <Search className="h-4 w-4" />
-            </button>
-          </div>
+      <div className="bg-white border border-gray-100 rounded p-3 mb-4">
+        <div className="flex gap-2">
+          <Input
+            className="flex-1"
+            placeholder="Buscar por nombre, email, telefono o documento..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+          />
+          <Button size="sm" onClick={handleSearch}>
+            <Search className="h-3.5 w-3.5" />
+          </Button>
         </div>
       </div>
 
-      <div className="pro-card overflow-hidden">
-        <div className="p-0">
-          <table className="pro-table">
-            <thead>
+      <div className="bg-white border border-gray-100 rounded overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="bg-gray-50/50 border-b border-gray-100">
               <tr>
-                <th>Cliente</th>
-                <th>Contacto</th>
-                <th>Movilidad</th>
-                <th>Necesidades</th>
-                <th>Emergencia</th>
-                <th>Citas</th>
-                <th>Estado</th>
-                <th>Acciones</th>
+                <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-500 uppercase">Cliente</th>
+                <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-500 uppercase">Contacto</th>
+                <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-500 uppercase">Movilidad</th>
+                <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-500 uppercase">Necesidades</th>
+                <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-500 uppercase">Emergencia</th>
+                <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-500 uppercase">Citas</th>
+                <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-500 uppercase">Estado</th>
+                <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-500 uppercase">Acciones</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-gray-50">
               {customers.map((customer) => (
-                <tr key={customer.id}>
-                  <td className="font-medium">
-                    <div className="flex items-center space-x-2">
-                      <User className="h-4 w-4" />
+                <tr key={customer.id} className="hover:bg-gray-50/50 transition-colors">
+                  <td className="px-3 py-2 font-medium text-gray-900">
+                    <div className="flex items-center gap-1.5">
+                      <User className="h-3 w-3 text-gray-400" />
                       <div>
                         <div>{customer.name}</div>
                         {customer.document && (
-                          <div className="text-xs text-gray-500">{customer.document}</div>
+                          <div className="text-[10px] text-gray-400">{customer.document}</div>
                         )}
                       </div>
                     </div>
                   </td>
-                  <td>
-                    <div className="space-y-1 text-sm">
-                      <div className="flex items-center space-x-1">
+                  <td className="px-3 py-2">
+                    <div className="space-y-0.5 text-gray-600">
+                      <div className="flex items-center gap-1">
                         <Phone className="h-3 w-3" />
                         <span>{customer.phone}</span>
                       </div>
                       {customer.email && (
-                        <div className="flex items-center space-x-1">
+                        <div className="flex items-center gap-1">
                           <Mail className="h-3 w-3" />
                           <span>{customer.email}</span>
                         </div>
                       )}
                     </div>
                   </td>
-                  <td>
-                    <div className="space-y-1">
-                      <div className="flex items-center space-x-2">
-                        <span>{getMobilityAidIcon(customer.mobilityAid)}</span>
-                        <span className="text-sm">{getMobilityAidLabel(customer.mobilityAid)}</span>
+                  <td className="px-3 py-2">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-1.5">
+                        {getMobilityAidIcon(customer.mobilityAid)}
+                        <span className="text-gray-600">{getMobilityAidLabel(customer.mobilityAid)}</span>
                       </div>
                       {customer.requiresAssistant && (
-                        <span className="status-badge status-busy text-xs">
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-yellow-100 text-yellow-800">
                           Requiere asistente
                         </span>
                       )}
                     </div>
                   </td>
-                  <td>
+                  <td className="px-3 py-2">
                     {customer.medicalNeeds ? (
-                      <div className="text-sm max-w-xs truncate" title={customer.medicalNeeds}>
+                      <div className="text-gray-600 max-w-[120px] truncate" title={customer.medicalNeeds}>
                         {customer.medicalNeeds}
                       </div>
                     ) : (
-                      <span className="text-gray-400 text-sm">Sin necesidades especiales</span>
+                      <span className="text-gray-400">-</span>
                     )}
                   </td>
-                  <td>
+                  <td className="px-3 py-2">
                     {customer.emergencyContact ? (
-                      <div className="text-sm">
+                      <div className="text-gray-600">
                         <div>{customer.emergencyContact}</div>
                         {customer.emergencyPhone && (
-                          <div className="text-xs text-gray-500">{customer.emergencyPhone}</div>
+                          <div className="text-[10px] text-gray-400">{customer.emergencyPhone}</div>
                         )}
                       </div>
                     ) : (
-                      <span className="text-gray-400 text-sm">No registrado</span>
+                      <span className="text-gray-400">-</span>
                     )}
                   </td>
-                  <td>
-                    <span className="status-badge status-available">
-                      {customer._count.appointments} citas
+                  <td className="px-3 py-2">
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-800">
+                      {customer._count.appointments}
                     </span>
                   </td>
-                  <td>
+                  <td className="px-3 py-2">
                     {customer.isActive ? (
-                      <span className="status-badge status-available">Activo</span>
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-800">Activo</span>
                     ) : (
-                      <span className="status-badge status-offline">Inactivo</span>
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-800">Inactivo</span>
                     )}
                   </td>
-                  <td>
-                    <div className="flex space-x-2">
-                      <button
-                        className="pro-btn pro-btn-secondary px-2 py-1"
+                  <td className="px-3 py-2">
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => handleEdit(customer)}
                       >
-                        <Edit className="h-4 w-4" />
-                      </button>
-                      <button
-                        className="pro-btn pro-btn-secondary px-2 py-1"
+                        <Edit className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => handleDelete(customer.id)}
                         disabled={!customer.isActive}
                       >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
                     </div>
                   </td>
                 </tr>

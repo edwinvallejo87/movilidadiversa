@@ -3,11 +3,11 @@ import { db } from '@/lib/db'
 import { z } from 'zod'
 
 const CheckAvailabilitySchema = z.object({
-  staffId: z.string().cuid().optional(),
-  resourceId: z.string().cuid().optional(),
+  staffId: z.string().min(1).optional(),
+  resourceId: z.string().min(1).optional(),
   startDateTime: z.string().datetime(),
   endDateTime: z.string().datetime(),
-  excludeAppointmentId: z.string().cuid().optional()
+  excludeAppointmentId: z.string().min(1).optional()
 })
 
 export async function GET(request: NextRequest) {
