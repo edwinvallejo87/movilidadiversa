@@ -236,31 +236,20 @@ export default function TariffsPage() {
     return type
   }
 
-  // Separate zones and out-of-city
-  const regularZones = zones.filter(z => z.slug !== 'fuera-ciudad')
-  const outOfCityZone = zones.find(z => z.slug === 'fuera-ciudad')
+  // Separate metropolitan zones only (isMetro = true)
+  const metroZones = zones.filter(z => z.isMetro)
 
-  // Get rates for zones (not out-of-city)
+  // Get rates for metro zones only
   const zoneRates = rates.filter(r => {
     const zone = zones.find(z => z.id === r.zoneId)
-    return zone && zone.slug !== 'fuera-ciudad'
+    return zone && zone.isMetro
   })
-
-  // Get rates for out-of-city (routes)
-  const routeRates = rates.filter(r => {
-    const zone = zones.find(z => z.id === r.zoneId)
-    return zone && zone.slug === 'fuera-ciudad'
-  })
-
-  // Get unique destinations from routes
-  const uniqueDestinations = [...new Set(routeRates.map(r => r.destinationName).filter(Boolean))]
 
   const filteredZones = selectedZone === 'all'
-    ? regularZones
-    : regularZones.filter(z => z.id === selectedZone)
+    ? metroZones
+    : metroZones.filter(z => z.id === selectedZone)
 
   const selectedZoneData = zones.find(z => z.id === newRate.zoneId)
-  const isCreatingRoute = selectedZoneData?.slug === 'fuera-ciudad'
 
   if (loading) {
     return (
@@ -295,7 +284,7 @@ export default function TariffsPage() {
                 <DialogHeader>
                   <DialogTitle>Nueva Tarifa</DialogTitle>
                   <DialogDescription>
-                    {isCreatingRoute ? 'Crear tarifa para ruta fuera de ciudad' : 'Crear tarifa por zona'}
+                    Crear tarifa para zona metropolitana
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-3">
@@ -307,46 +296,12 @@ export default function TariffsPage() {
                     >
                       <SelectTrigger><SelectValue placeholder="Seleccionar tipo" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="_header_zones" disabled className="font-semibold text-gray-500">
-                          -- Zonas --
-                        </SelectItem>
-                        {regularZones.map(zone => (
+                        {metroZones.map(zone => (
                           <SelectItem key={zone.id} value={zone.id}>{zone.name}</SelectItem>
                         ))}
-                        {outOfCityZone && (
-                          <>
-                            <SelectItem value="_header_routes" disabled className="font-semibold text-gray-500 mt-2">
-                              -- Rutas --
-                            </SelectItem>
-                            <SelectItem value={outOfCityZone.id}>Ruta Fuera de Ciudad</SelectItem>
-                          </>
-                        )}
                       </SelectContent>
                     </Select>
                   </div>
-
-                  {isCreatingRoute && (
-                    <>
-                      <div>
-                        <Label>Nombre del Destino</Label>
-                        <Input
-                          value={newRate.destinationName}
-                          onChange={(e) => setNewRate({...newRate, destinationName: e.target.value})}
-                          placeholder="Ej: Aeropuerto JMC, Rionegro, La Ceja"
-                        />
-                      </div>
-                      <div>
-                        <Label>Tipo de Origen</Label>
-                        <Select value={newRate.originType} onValueChange={(v) => setNewRate({...newRate, originType: v})}>
-                          <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="DESDE_MEDELLIN">Desde Medellin</SelectItem>
-                            <SelectItem value="MISMA_CIUDAD">Misma Ciudad (local)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </>
-                  )}
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -431,7 +386,7 @@ export default function TariffsPage() {
         <TabsList>
           <TabsTrigger value="zonas" className="text-xs">
             <MapPin className="w-3 h-3 mr-1.5" />
-            Zonas ({zoneRates.length})
+            Zona Metropolitana ({zoneRates.length})
           </TabsTrigger>
           <TabsTrigger value="rutas" className="text-xs">
             <Route className="w-3 h-3 mr-1.5" />
@@ -450,7 +405,7 @@ export default function TariffsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todas las zonas</SelectItem>
-                {regularZones.map(zone => (
+                {metroZones.map(zone => (
                   <SelectItem key={zone.id} value={zone.id}>{zone.name}</SelectItem>
                 ))}
               </SelectContent>
