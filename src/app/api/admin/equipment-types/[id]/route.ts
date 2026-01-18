@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { z } from 'zod'
+
+const UpdateEquipmentTypeSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  description: z.string().max(500).nullable().optional(),
+  isActive: z.boolean().optional()
+})
 
 export async function GET(
   request: NextRequest,
@@ -36,20 +43,41 @@ export async function PUT(
   try {
     const { id } = await params
     const body = await request.json()
-    const { name, description, isActive } = body
+    const validatedData = UpdateEquipmentTypeSchema.parse(body)
+
+    // Check if equipment type exists
+    const existingEquipmentType = await prisma.equipmentType.findUnique({
+      where: { id }
+    })
+
+    if (!existingEquipmentType) {
+      return NextResponse.json(
+        { error: 'Tipo de equipo no encontrado' },
+        { status: 404 }
+      )
+    }
+
+    const updateData: any = {}
+    if (validatedData.name !== undefined) updateData.name = validatedData.name
+    if (validatedData.description !== undefined) updateData.description = validatedData.description
+    if (validatedData.isActive !== undefined) updateData.isActive = validatedData.isActive
 
     const equipmentType = await prisma.equipmentType.update({
       where: { id },
-      data: {
-        name: name || undefined,
-        description: description !== undefined ? description : undefined,
-        isActive: isActive !== undefined ? isActive : undefined
-      }
+      data: updateData
     })
 
     return NextResponse.json(equipmentType)
   } catch (error) {
     console.error('Error updating equipment type:', error)
+
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Invalid data', details: error.issues },
+        { status: 400 }
+      )
+    }
+
     return NextResponse.json(
       { error: 'Error updating equipment type' },
       { status: 500 }
@@ -63,6 +91,18 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
+
+    // Check if equipment type exists
+    const existingEquipmentType = await prisma.equipmentType.findUnique({
+      where: { id }
+    })
+
+    if (!existingEquipmentType) {
+      return NextResponse.json(
+        { error: 'Tipo de equipo no encontrado' },
+        { status: 404 }
+      )
+    }
 
     // Soft delete - just deactivate
     await prisma.equipmentType.update({

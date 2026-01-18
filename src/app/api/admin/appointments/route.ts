@@ -21,7 +21,7 @@ const CreateAdminAppointmentSchema = z.object({
   pricingBreakdown: z.array(z.object({
     item: z.string(),
     quantity: z.number().optional(),
-    unitPrice: z.number(),
+    unitPrice: z.number().optional(),
     subtotal: z.number()
   })).optional()
 })

@@ -1,5 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { z } from 'zod'
+
+const CreateRateSchema = z.object({
+  zoneId: z.string().min(1, 'Zone ID is required'),
+  tripType: z.enum(['SENCILLO', 'DOBLE']),
+  equipmentType: z.enum(['RAMPA', 'ROBOTICA_PLEGABLE']),
+  originType: z.enum(['MISMO_MUNICIPIO', 'DESDE_MEDELLIN']).nullable().optional(),
+  distanceRange: z.string().nullable().optional(),
+  destinationName: z.string().nullable().optional(),
+  price: z.number().min(0, 'Price must be non-negative')
+})
 
 export async function GET() {
   try {
@@ -24,23 +35,43 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { zoneId, tripType, equipmentType, originType, distanceRange, destinationName, price } = body
+    const validatedData = CreateRateSchema.parse(body)
+
+    // Verify zone exists
+    const zone = await prisma.zone.findUnique({
+      where: { id: validatedData.zoneId }
+    })
+
+    if (!zone) {
+      return NextResponse.json(
+        { error: 'Zone not found' },
+        { status: 404 }
+      )
+    }
 
     const rate = await prisma.rate.create({
       data: {
-        zoneId,
-        tripType,
-        equipmentType,
-        originType: originType || null,
-        distanceRange: distanceRange || null,
-        destinationName: destinationName || null,
-        price
+        zoneId: validatedData.zoneId,
+        tripType: validatedData.tripType,
+        equipmentType: validatedData.equipmentType,
+        originType: validatedData.originType || null,
+        distanceRange: validatedData.distanceRange || null,
+        destinationName: validatedData.destinationName || null,
+        price: validatedData.price
       }
     })
 
     return NextResponse.json(rate, { status: 201 })
   } catch (error) {
     console.error('Error creating rate:', error)
+
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Invalid data', details: error.issues },
+        { status: 400 }
+      )
+    }
+
     return NextResponse.json(
       { error: 'Error creating rate' },
       { status: 500 }

@@ -12,8 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
-import { Calendar as CalendarIcon, User, Wrench, Car, AlertTriangle, ClipboardList, DollarSign, MapPin } from 'lucide-react'
+import { Calendar as CalendarIcon, User, Wrench, Car, AlertTriangle, ClipboardList, DollarSign, MapPin, Download } from 'lucide-react'
 import { PageHeader } from '@/components/admin'
+import { generateReceiptPDF, ReceiptData } from '@/lib/generate-receipt-pdf'
 
 // Configurar moment en español
 moment.locale('es')
@@ -85,6 +86,11 @@ export default function CalendarPage() {
   // Availability checking
   const [isCheckingAvailability, setIsCheckingAvailability] = useState(false)
   const [availabilityStatus, setAvailabilityStatus] = useState<any>(null)
+
+  // Post-creation receipt download
+  const [showReceiptModal, setShowReceiptModal] = useState(false)
+  const [createdAppointmentId, setCreatedAppointmentId] = useState<string | null>(null)
+  const [isDownloadingReceipt, setIsDownloadingReceipt] = useState(false)
 
   // Zone detection from address
   const detectZoneFromAddress = (address: string): string | null => {
@@ -660,13 +666,21 @@ export default function CalendarPage() {
         })
       }
 
+      const result = await response.json()
+
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Error al guardar')
+        throw new Error(result.error || 'Error al guardar')
       }
 
       toast.success(isEditMode ? 'Cita actualizada' : 'Cita creada')
       setShowCreateModal(false)
+
+      // Show receipt download option only for new appointments
+      if (!isEditMode && result.id) {
+        setCreatedAppointmentId(result.id)
+        setShowReceiptModal(true)
+      }
+
       setIsEditMode(false)
       setEditingAppointmentId(null)
       resetForm()
@@ -718,6 +732,53 @@ export default function CalendarPage() {
       'CANCELLED': 'Cancelada'
     }
     return labels[status] || status
+  }
+
+  // Download receipt for an appointment
+  const handleDownloadReceipt = async (appointmentId: string) => {
+    setIsDownloadingReceipt(true)
+    try {
+      const response = await fetch(`/api/appointments/${appointmentId}`)
+      if (!response.ok) throw new Error('Error al cargar cita')
+
+      const appointment = await response.json()
+
+      // Parse pricingSnapshot if it's a string
+      let pricingData = undefined
+      if (appointment.pricingSnapshot) {
+        try {
+          pricingData = typeof appointment.pricingSnapshot === 'string'
+            ? JSON.parse(appointment.pricingSnapshot)
+            : appointment.pricingSnapshot
+        } catch {
+          pricingData = undefined
+        }
+      }
+
+      const receiptData: ReceiptData = {
+        id: appointment.id,
+        scheduledAt: appointment.scheduledAt,
+        originAddress: appointment.originAddress || '',
+        destinationAddress: appointment.destinationAddress || '',
+        distanceKm: appointment.distanceKm,
+        equipmentType: appointment.equipmentType || 'RAMPA',
+        totalAmount: appointment.totalAmount || 0,
+        pricingSnapshot: pricingData,
+        customer: {
+          name: appointment.customer?.name || 'Cliente',
+          phone: appointment.customer?.phone,
+          email: appointment.customer?.email,
+        },
+      }
+
+      await generateReceiptPDF(receiptData)
+      toast.success('Recibo descargado')
+    } catch (error) {
+      console.error('Error downloading receipt:', error)
+      toast.error('Error al descargar recibo')
+    } finally {
+      setIsDownloadingReceipt(false)
+    }
   }
 
   if (loading) {
@@ -1371,17 +1432,73 @@ export default function CalendarPage() {
               )}
 
               {/* Botones */}
-              <div className="flex justify-end gap-2 pt-2">
-                <Button variant="ghost" size="sm" onClick={() => setShowDetailsModal(false)}>
-                  Cerrar
+              <div className="flex justify-between pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDownloadReceipt(selectedEvent.appointmentId)}
+                  disabled={isDownloadingReceipt}
+                >
+                  <Download className="w-3.5 h-3.5 mr-1.5" />
+                  {isDownloadingReceipt ? 'Descargando...' : 'Descargar Recibo'}
                 </Button>
-                <Button size="sm" onClick={handleOpenEdit}>
-                  Editar
-                </Button>
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => setShowDetailsModal(false)}>
+                    Cerrar
+                  </Button>
+                  <Button size="sm" onClick={handleOpenEdit}>
+                    Editar
+                  </Button>
+                </div>
               </div>
             </div>
           )}
 
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de descarga de recibo post-creacion */}
+      <Dialog open={showReceiptModal} onOpenChange={setShowReceiptModal}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-medium flex items-center gap-2">
+              <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                <CalendarIcon className="w-4 h-4 text-green-600" />
+              </div>
+              Cita Creada Exitosamente
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              La cita ha sido programada. Puedes descargar el recibo ahora o hacerlo despues desde los detalles de la cita.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-3 pt-2">
+            <Button
+              onClick={async () => {
+                if (createdAppointmentId) {
+                  await handleDownloadReceipt(createdAppointmentId)
+                }
+                setShowReceiptModal(false)
+                setCreatedAppointmentId(null)
+              }}
+              disabled={isDownloadingReceipt}
+              className="w-full"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              {isDownloadingReceipt ? 'Generando recibo...' : 'Descargar Recibo PDF'}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setShowReceiptModal(false)
+                setCreatedAppointmentId(null)
+              }}
+              className="text-gray-500"
+            >
+              Descargar mas tarde
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
