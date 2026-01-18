@@ -13,6 +13,8 @@ async function main() {
   await prisma.outOfCityDestination.deleteMany()
   await prisma.pricingConfig.deleteMany()
   await prisma.equipmentType.deleteMany()
+  await prisma.staff.deleteMany()
+  await prisma.customer.deleteMany()
 
   // ===== EQUIPMENT TYPES =====
   console.log('Creating equipment types...')
@@ -21,6 +23,108 @@ async function main() {
     data: [
       { name: 'Vehículo con Rampa', slug: 'RAMPA', description: 'Vehículo adaptado con rampa para silla de ruedas' },
       { name: 'Silla Robótica Plegable', slug: 'ROBOTICA_PLEGABLE', description: 'Servicio con silla robótica plegable para escaleras' },
+    ]
+  })
+
+  // ===== STAFF (CONDUCTORES) =====
+  console.log('Creating staff...')
+
+  await prisma.staff.createMany({
+    data: [
+      {
+        name: 'Carlos Pérez',
+        phone: '3001234567',
+        email: 'carlos@movilidaddiversa.com',
+        licensePlate: 'ABC123',
+        vehicleModel: 'Renault Kangoo 2022',
+        capacity: 4,
+        isWheelchairAccessible: true,
+        equipmentType: 'RAMPA',
+        color: '#3B82F6',
+        status: 'AVAILABLE'
+      },
+      {
+        name: 'María González',
+        phone: '3009876543',
+        email: 'maria@movilidaddiversa.com',
+        licensePlate: 'XYZ789',
+        vehicleModel: 'Peugeot Partner 2023',
+        capacity: 4,
+        isWheelchairAccessible: true,
+        equipmentType: 'RAMPA',
+        color: '#10B981',
+        status: 'AVAILABLE'
+      },
+      {
+        name: 'Andrés Rodríguez',
+        phone: '3005551234',
+        email: 'andres@movilidaddiversa.com',
+        licensePlate: 'DEF456',
+        vehicleModel: 'Citroën Berlingo 2021',
+        capacity: 4,
+        isWheelchairAccessible: true,
+        equipmentType: 'ROBOTICA_PLEGABLE',
+        color: '#F59E0B',
+        status: 'AVAILABLE'
+      },
+    ]
+  })
+
+  // ===== CUSTOMERS (CLIENTES) =====
+  console.log('Creating customers...')
+
+  await prisma.customer.createMany({
+    data: [
+      {
+        name: 'Juan Martínez',
+        phone: '3101234567',
+        email: 'juan.martinez@email.com',
+        document: '1234567890',
+        emergencyContact: 'Ana Martínez - 3107654321',
+        medicalNotes: 'Usuario de silla de ruedas manual',
+        mobilityNeeds: '["wheelchair"]',
+        defaultAddress: 'Calle 50 #45-30, El Poblado, Medellín'
+      },
+      {
+        name: 'Rosa López',
+        phone: '3209876543',
+        email: 'rosa.lopez@email.com',
+        document: '0987654321',
+        emergencyContact: 'Pedro López - 3201234567',
+        medicalNotes: 'Requiere asistencia para escaleras',
+        mobilityNeeds: '["walker", "stairs_assistance"]',
+        defaultAddress: 'Carrera 70 #10-25, Laureles, Medellín'
+      },
+      {
+        name: 'Pedro Gómez',
+        phone: '3155551234',
+        email: 'pedro.gomez@email.com',
+        document: '5555555555',
+        emergencyContact: 'María Gómez - 3159998877',
+        medicalNotes: 'Silla de ruedas eléctrica',
+        mobilityNeeds: '["electric_wheelchair"]',
+        defaultAddress: 'Avenida 33 #78-50, Envigado'
+      },
+      {
+        name: 'Ana Ruiz',
+        phone: '3187778899',
+        email: 'ana.ruiz@email.com',
+        document: '7777777777',
+        emergencyContact: 'Carlos Ruiz - 3181112233',
+        medicalNotes: 'Movilidad reducida temporal, usa muletas',
+        mobilityNeeds: '["crutches"]',
+        defaultAddress: 'Calle 30 #40-15, Bello'
+      },
+      {
+        name: 'Luis Herrera',
+        phone: '3004445566',
+        email: 'luis.herrera@email.com',
+        document: '8888888888',
+        emergencyContact: 'Sandra Herrera - 3006667788',
+        medicalNotes: 'Adulto mayor con andador',
+        mobilityNeeds: '["walker"]',
+        defaultAddress: 'Carrera 45 #55-20, Itagüí'
+      },
     ]
   })
 
@@ -245,6 +349,8 @@ async function main() {
 
   // Print summary
   const equipmentCount = await prisma.equipmentType.count()
+  const staffCount = await prisma.staff.count()
+  const customerCount = await prisma.customer.count()
   const zoneCount = await prisma.zone.count()
   const rateCount = await prisma.rate.count()
   const destCount = await prisma.outOfCityDestination.count()
@@ -254,6 +360,8 @@ async function main() {
   console.log(`
 Summary:
 - Equipment Types: ${equipmentCount}
+- Staff (Conductores): ${staffCount}
+- Customers (Clientes): ${customerCount}
 - Zones: ${zoneCount}
 - Rates: ${rateCount}
 - Out of City Destinations: ${destCount}
