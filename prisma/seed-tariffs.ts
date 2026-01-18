@@ -19,8 +19,8 @@ async function main() {
 
   await prisma.equipmentType.createMany({
     data: [
-      { name: 'Vehículo con Rampa', code: 'RAMPA', description: 'Vehículo adaptado con rampa para silla de ruedas' },
-      { name: 'Silla Robótica Plegable', code: 'ROBOTICA_PLEGABLE', description: 'Servicio con silla robótica plegable para escaleras' },
+      { name: 'Vehículo con Rampa', slug: 'RAMPA', description: 'Vehículo adaptado con rampa para silla de ruedas' },
+      { name: 'Silla Robótica Plegable', slug: 'ROBOTICA_PLEGABLE', description: 'Servicio con silla robótica plegable para escaleras' },
     ]
   })
 
