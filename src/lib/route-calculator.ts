@@ -248,3 +248,36 @@ export async function calculateDistanceBetweenAddresses(
     success: true
   }
 }
+
+/**
+ * Calculate route using pre-existing coordinates (skips geocoding)
+ * Use this when you already have coordinates from address autocomplete
+ */
+export async function calculateRouteFromCoords(
+  originCoords: Coordinates,
+  destinationCoords: Coordinates
+): Promise<{
+  distanceKm: number
+  durationMinutes: number
+  routeGeometry?: [number, number][]
+  success: boolean
+  error?: string
+}> {
+  const routeResult = await calculateRoute(originCoords, destinationCoords)
+
+  if (!routeResult.success) {
+    return {
+      distanceKm: 0,
+      durationMinutes: 0,
+      success: false,
+      error: routeResult.error
+    }
+  }
+
+  return {
+    distanceKm: routeResult.distanceKm,
+    durationMinutes: routeResult.durationMinutes,
+    routeGeometry: routeResult.geometry,
+    success: true
+  }
+}

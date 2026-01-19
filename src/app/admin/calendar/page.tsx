@@ -15,7 +15,7 @@ import { toast } from 'sonner'
 import { Calendar as CalendarIcon, User, Wrench, Car, AlertTriangle, ClipboardList, DollarSign, MapPin, Download } from 'lucide-react'
 import { PageHeader } from '@/components/admin'
 import { generateReceiptPDF, ReceiptData } from '@/lib/generate-receipt-pdf'
-import { calculateDistanceBetweenAddresses, Coordinates } from '@/lib/route-calculator'
+import { calculateDistanceBetweenAddresses, calculateRouteFromCoords, Coordinates } from '@/lib/route-calculator'
 import dynamic from 'next/dynamic'
 
 // Dynamic imports to avoid SSR issues with Leaflet
@@ -156,38 +156,42 @@ export default function CalendarPage() {
 
   // Detect origin type based on origin and destination zones
   const detectOriginType = (originZone: string | null, destZone: string | null): string => {
+    // If origin is Medellín and destination is out-of-city
+    if (originZone === 'medellin' && destZone === 'fuera-ciudad') {
+      return 'DESDE_MEDELLIN'
+    }
+    // If destination is Medellín and origin is out-of-city
+    if (destZone === 'medellin' && originZone === 'fuera-ciudad') {
+      return 'DESDE_MEDELLIN'
+    }
     // If origin is Medellín and destination is different metro zone
-    if (originZone === 'medellin' && destZone && destZone !== 'medellin' && destZone !== 'fuera-ciudad') {
+    if (originZone === 'medellin' && destZone && destZone !== 'medellin') {
       return 'DESDE_MEDELLIN'
     }
     // If destination is Medellín and origin is different metro zone
-    if (destZone === 'medellin' && originZone && originZone !== 'medellin' && originZone !== 'fuera-ciudad') {
+    if (destZone === 'medellin' && originZone && originZone !== 'medellin') {
       return 'DESDE_MEDELLIN'
     }
-    // Same municipality
+    // Same municipality or other cases
     return 'MISMO_MUNICIPIO'
   }
 
-  // Detect out-of-city destination name from address
+  // Detect out-of-city destination name from address (must match DB values exactly)
   const detectOutOfCityDestination = (address: string): string => {
     if (!address) return ''
     const addr = address.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 
-    if (addr.includes('aeropuerto') || addr.includes('jmc') || addr.includes('jose maria')) {
+    // Must return exact names from database: "Aeropuerto JMC", "Rionegro", "La Ceja"
+    if (addr.includes('aeropuerto') || addr.includes('jmc') || addr.includes('jose maria') || addr.includes('cordova') || addr.includes('cordoba')) {
       return 'Aeropuerto JMC'
     }
-    if (addr.includes('rionegro')) return 'Rionegro'
+    if (addr.includes('rionegro') && !addr.includes('aeropuerto')) return 'Rionegro'
     if (addr.includes('la ceja')) return 'La Ceja'
-    if (addr.includes('marinilla')) return 'Marinilla'
-    if (addr.includes('el retiro')) return 'El Retiro'
-    if (addr.includes('abejorral')) return 'Abejorral'
 
     return ''
   }
 
   // Auto-detect zone when addresses change
-  // COMMENTED OUT: Testing map functionality first
-  /*
   useEffect(() => {
     const originZone = detectZoneFromAddress(formData.originAddress)
     const destZone = detectZoneFromAddress(formData.destinationAddress)
@@ -224,17 +228,43 @@ export default function CalendarPage() {
       toast.info(`Zona detectada: ${zoneNames[detectedZone] || detectedZone}`)
     }
   }, [formData.originAddress, formData.destinationAddress])
-  */
 
-  // Auto-calculate route distance when addresses change
+  // Auto-calculate route distance when coords or addresses change
   useEffect(() => {
-    const calculateRoute = async () => {
-      // Need both addresses with minimum length
+    const calculateRouteDistance = async () => {
+      // If we have both coords (from autocomplete), use them directly
+      if (originCoords && destinationCoords) {
+        setIsCalculatingRoute(true)
+        setRouteError(null)
+
+        try {
+          const result = await calculateRouteFromCoords(originCoords, destinationCoords)
+
+          if (result.success) {
+            setFormData(prev => ({
+              ...prev,
+              distanceKm: result.distanceKm
+            }))
+            setEstimatedDuration(result.durationMinutes)
+            setRouteGeometry(result.routeGeometry || null)
+            setRouteError(null)
+            toast.success(`Distancia calculada: ${result.distanceKm} km (~${result.durationMinutes} min)`)
+          } else {
+            setRouteError(result.error || 'Error calculando ruta')
+            setRouteGeometry(null)
+          }
+        } catch (error) {
+          setRouteError('Error al calcular la ruta')
+        } finally {
+          setIsCalculatingRoute(false)
+        }
+        return
+      }
+
+      // Fallback: Need addresses if we don't have coords
       if (!formData.originAddress || !formData.destinationAddress) {
         setRouteError(null)
         setEstimatedDuration(null)
-        setOriginCoords(null)
-        setDestinationCoords(null)
         setRouteGeometry(null)
         return
       }
@@ -243,6 +273,7 @@ export default function CalendarPage() {
         return // Wait for more complete addresses
       }
 
+      // No coords available - geocode addresses
       setIsCalculatingRoute(true)
       setRouteError(null)
 
@@ -276,10 +307,10 @@ export default function CalendarPage() {
       }
     }
 
-    // Debounce: wait 1.5 seconds after user stops typing
-    const timeoutId = setTimeout(calculateRoute, 1500)
+    // Debounce: wait 800ms after changes
+    const timeoutId = setTimeout(calculateRouteDistance, 800)
     return () => clearTimeout(timeoutId)
-  }, [formData.originAddress, formData.destinationAddress])
+  }, [originCoords, destinationCoords, formData.originAddress, formData.destinationAddress])
 
   useEffect(() => {
     loadAppointments()
@@ -1139,7 +1170,7 @@ export default function CalendarPage() {
                     id="originAddress"
                     value={formData.originAddress}
                     onChange={(value, coords) => {
-                      setFormData({...formData, originAddress: value})
+                      setFormData(prev => ({...prev, originAddress: value}))
                       if (coords) {
                         setOriginCoords(coords)
                       }
@@ -1158,7 +1189,7 @@ export default function CalendarPage() {
                     id="destinationAddress"
                     value={formData.destinationAddress}
                     onChange={(value, coords) => {
-                      setFormData({...formData, destinationAddress: value})
+                      setFormData(prev => ({...prev, destinationAddress: value}))
                       if (coords) {
                         setDestinationCoords(coords)
                       }
