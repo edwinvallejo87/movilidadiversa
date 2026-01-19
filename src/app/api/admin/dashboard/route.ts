@@ -74,16 +74,14 @@ export async function GET() {
             lt: endOfDay
           }
         },
-        include: {
+        select: {
+          id: true,
+          scheduledAt: true,
+          equipmentType: true,
+          status: true,
           customer: {
             select: {
               name: true
-            }
-          },
-          service: {
-            select: {
-              name: true,
-              color: true
             }
           },
           staff: {
@@ -125,15 +123,25 @@ export async function GET() {
         monthRevenue: formatCurrency(monthRevenue),
         monthRevenueRaw: monthRevenue
       },
-      todayAppointmentsList: todayAppointmentsList.map(apt => ({
-        id: apt.id,
-        scheduledAt: apt.scheduledAt,
-        customerName: apt.customer?.name || 'Sin cliente',
-        serviceName: apt.service?.name || 'Sin servicio',
-        serviceColor: apt.service?.color || '#3B82F6',
-        staffName: apt.staff?.name || 'Sin asignar',
-        status: apt.status
-      }))
+      todayAppointmentsList: todayAppointmentsList.map(apt => {
+        const equipmentLabels: Record<string, string> = {
+          'RAMPA': 'Vehículo con Rampa',
+          'ROBOTICA_PLEGABLE': 'Silla Robótica/Plegable'
+        }
+        const equipmentColors: Record<string, string> = {
+          'RAMPA': '#3B82F6',
+          'ROBOTICA_PLEGABLE': '#8B5CF6'
+        }
+        return {
+          id: apt.id,
+          scheduledAt: apt.scheduledAt,
+          customerName: apt.customer?.name || 'Sin cliente',
+          serviceName: equipmentLabels[apt.equipmentType] || apt.equipmentType,
+          serviceColor: equipmentColors[apt.equipmentType] || '#3B82F6',
+          staffName: apt.staff?.name || 'Sin asignar',
+          status: apt.status
+        }
+      })
     })
   } catch (error) {
     console.error('Dashboard API error:', error)
