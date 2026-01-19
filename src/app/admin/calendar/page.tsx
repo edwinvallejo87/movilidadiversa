@@ -15,7 +15,18 @@ import { toast } from 'sonner'
 import { Calendar as CalendarIcon, User, Wrench, Car, AlertTriangle, ClipboardList, DollarSign, MapPin, Download } from 'lucide-react'
 import { PageHeader } from '@/components/admin'
 import { generateReceiptPDF, ReceiptData } from '@/lib/generate-receipt-pdf'
-import { calculateDistanceBetweenAddresses } from '@/lib/route-calculator'
+import { calculateDistanceBetweenAddresses, Coordinates } from '@/lib/route-calculator'
+import dynamic from 'next/dynamic'
+
+// Dynamic import to avoid SSR issues with Leaflet
+const RouteMap = dynamic(() => import('@/components/RouteMap'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-[200px] bg-gray-100 rounded-lg flex items-center justify-center">
+      <span className="text-xs text-gray-500">Cargando mapa...</span>
+    </div>
+  )
+})
 
 // Configurar moment en español
 moment.locale('es')
@@ -97,6 +108,9 @@ export default function CalendarPage() {
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false)
   const [routeError, setRouteError] = useState<string | null>(null)
   const [estimatedDuration, setEstimatedDuration] = useState<number | null>(null)
+  const [originCoords, setOriginCoords] = useState<Coordinates | null>(null)
+  const [destinationCoords, setDestinationCoords] = useState<Coordinates | null>(null)
+  const [routeGeometry, setRouteGeometry] = useState<[number, number][] | null>(null)
 
   // Zone detection from address
   const detectZoneFromAddress = (address: string): string | null => {
@@ -211,6 +225,9 @@ export default function CalendarPage() {
       if (!formData.originAddress || !formData.destinationAddress) {
         setRouteError(null)
         setEstimatedDuration(null)
+        setOriginCoords(null)
+        setDestinationCoords(null)
+        setRouteGeometry(null)
         return
       }
 
@@ -233,10 +250,16 @@ export default function CalendarPage() {
             distanceKm: result.distanceKm
           }))
           setEstimatedDuration(result.durationMinutes)
+          setOriginCoords(result.originCoords || null)
+          setDestinationCoords(result.destinationCoords || null)
+          setRouteGeometry(result.routeGeometry || null)
           setRouteError(null)
           toast.success(`Distancia calculada: ${result.distanceKm} km (~${result.durationMinutes} min)`)
         } else {
           setRouteError(result.error || 'Error calculando ruta')
+          setOriginCoords(null)
+          setDestinationCoords(null)
+          setRouteGeometry(null)
         }
       } catch (error) {
         setRouteError('Error al calcular la ruta')
@@ -406,6 +429,9 @@ export default function CalendarPage() {
     setEditingAppointmentId(null)
     setRouteError(null)
     setEstimatedDuration(null)
+    setOriginCoords(null)
+    setDestinationCoords(null)
+    setRouteGeometry(null)
   }
 
   const checkAvailability = async () => {
@@ -1081,17 +1107,18 @@ export default function CalendarPage() {
                 />
               </div>
 
-              {/* Route calculation status */}
-              {(isCalculatingRoute || formData.distanceKm > 0 || routeError) && (
-                <div className={`flex items-center gap-2 p-2 rounded text-xs ${
-                  routeError ? 'bg-red-50 border border-red-100' :
-                  isCalculatingRoute ? 'bg-gray-100' :
-                  'bg-green-50 border border-green-100'
-                }`}>
+              {/* Route calculation status - always visible */}
+              <div className={`flex items-center justify-between p-2.5 rounded border text-xs ${
+                routeError ? 'bg-red-50 border-red-200' :
+                isCalculatingRoute ? 'bg-blue-50 border-blue-200' :
+                formData.distanceKm > 0 ? 'bg-green-50 border-green-200' :
+                'bg-gray-50 border-gray-200'
+              }`}>
+                <div className="flex items-center gap-2">
                   {isCalculatingRoute ? (
                     <>
-                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600"></div>
-                      <span className="text-gray-600">Calculando ruta con OpenStreetMap...</span>
+                      <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-blue-600 border-t-transparent"></div>
+                      <span className="text-blue-700">Calculando ruta...</span>
                     </>
                   ) : routeError ? (
                     <>
@@ -1102,11 +1129,35 @@ export default function CalendarPage() {
                     <>
                       <MapPin className="w-3.5 h-3.5 text-green-600" />
                       <span className="text-green-700">
-                        <strong>{formData.distanceKm} km</strong>
-                        {estimatedDuration && ` (~${estimatedDuration} min)`}
+                        Ruta calculada: <strong>{formData.distanceKm} km</strong>
+                        {estimatedDuration && <span className="text-green-600 ml-1">(~{estimatedDuration} min)</span>}
                       </span>
                     </>
-                  ) : null}
+                  ) : (
+                    <>
+                      <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                      <span className="text-gray-500">
+                        {formData.originAddress && formData.destinationAddress
+                          ? 'Escribe direcciones completas para calcular...'
+                          : 'Ingresa ambas direcciones para calcular la ruta'}
+                      </span>
+                    </>
+                  )}
+                </div>
+                {formData.distanceKm > 0 && (
+                  <span className="text-[10px] text-gray-400 bg-white px-1.5 py-0.5 rounded">OpenStreetMap</span>
+                )}
+              </div>
+
+              {/* Map visualization */}
+              {(originCoords || destinationCoords || isCalculatingRoute) && (
+                <div className="mt-2">
+                  <RouteMap
+                    originCoords={originCoords || undefined}
+                    destinationCoords={destinationCoords || undefined}
+                    routeGeometry={routeGeometry || undefined}
+                    className="h-[180px] border border-gray-200 rounded-lg overflow-hidden"
+                  />
                 </div>
               )}
             </div>

@@ -18,6 +18,7 @@ export interface GeocodingResult {
 export interface RouteResult {
   distanceKm: number
   durationMinutes: number
+  geometry?: [number, number][] // Array of [lat, lng] coordinates for the route
   success: boolean
   error?: string
 }
@@ -85,6 +86,48 @@ export async function geocodeAddress(address: string): Promise<GeocodingResult> 
 }
 
 /**
+ * Decode polyline encoded string from OSRM
+ * Based on the polyline algorithm: https://developers.google.com/maps/documentation/utilities/polylinealgorithm
+ */
+function decodePolyline(encoded: string): [number, number][] {
+  const coordinates: [number, number][] = []
+  let index = 0
+  let lat = 0
+  let lng = 0
+
+  while (index < encoded.length) {
+    let shift = 0
+    let result = 0
+    let byte
+
+    do {
+      byte = encoded.charCodeAt(index++) - 63
+      result |= (byte & 0x1f) << shift
+      shift += 5
+    } while (byte >= 0x20)
+
+    const dlat = result & 1 ? ~(result >> 1) : result >> 1
+    lat += dlat
+
+    shift = 0
+    result = 0
+
+    do {
+      byte = encoded.charCodeAt(index++) - 63
+      result |= (byte & 0x1f) << shift
+      shift += 5
+    } while (byte >= 0x20)
+
+    const dlng = result & 1 ? ~(result >> 1) : result >> 1
+    lng += dlng
+
+    coordinates.push([lat / 1e5, lng / 1e5])
+  }
+
+  return coordinates
+}
+
+/**
  * Calculate route between two points using OSRM (Open Source Routing Machine)
  * Uses the public demo server - for production, consider self-hosting OSRM
  */
@@ -97,7 +140,7 @@ export async function calculateRoute(
     const coordinates = `${origin.lng},${origin.lat};${destination.lng},${destination.lat}`
 
     const response = await fetch(
-      `https://router.project-osrm.org/route/v1/driving/${coordinates}?overview=false`,
+      `https://router.project-osrm.org/route/v1/driving/${coordinates}?overview=full&geometries=polyline`,
       {
         headers: {
           'User-Agent': 'MovilidadDiversa/1.0'
@@ -121,9 +164,12 @@ export async function calculateRoute(
     }
 
     const route = data.routes[0]
+    const geometry = route.geometry ? decodePolyline(route.geometry) : undefined
+
     return {
       distanceKm: Math.round((route.distance / 1000) * 10) / 10, // meters to km, 1 decimal
       durationMinutes: Math.round(route.duration / 60), // seconds to minutes
+      geometry,
       success: true
     }
   } catch (error) {
@@ -148,6 +194,7 @@ export async function calculateDistanceBetweenAddresses(
   durationMinutes: number
   originCoords?: Coordinates
   destinationCoords?: Coordinates
+  routeGeometry?: [number, number][]
   success: boolean
   error?: string
 }> {
@@ -197,6 +244,7 @@ export async function calculateDistanceBetweenAddresses(
     durationMinutes: routeResult.durationMinutes,
     originCoords: originResult.coordinates,
     destinationCoords: destResult.coordinates,
+    routeGeometry: routeResult.geometry,
     success: true
   }
 }
