@@ -18,7 +18,7 @@ import { generateReceiptPDF, ReceiptData } from '@/lib/generate-receipt-pdf'
 import { calculateDistanceBetweenAddresses, Coordinates } from '@/lib/route-calculator'
 import dynamic from 'next/dynamic'
 
-// Dynamic import to avoid SSR issues with Leaflet
+// Dynamic imports to avoid SSR issues with Leaflet
 const RouteMap = dynamic(() => import('@/components/RouteMap'), {
   ssr: false,
   loading: () => (
@@ -26,6 +26,11 @@ const RouteMap = dynamic(() => import('@/components/RouteMap'), {
       <span className="text-xs text-gray-500">Cargando mapa...</span>
     </div>
   )
+})
+
+const AddressAutocomplete = dynamic(() => import('@/components/AddressAutocomplete'), {
+  ssr: false,
+  loading: () => <Input placeholder="Cargando..." disabled />
 })
 
 // Configurar moment en español
@@ -181,6 +186,8 @@ export default function CalendarPage() {
   }
 
   // Auto-detect zone when addresses change
+  // COMMENTED OUT: Testing map functionality first
+  /*
   useEffect(() => {
     const originZone = detectZoneFromAddress(formData.originAddress)
     const destZone = detectZoneFromAddress(formData.destinationAddress)
@@ -217,6 +224,7 @@ export default function CalendarPage() {
       toast.info(`Zona detectada: ${zoneNames[detectedZone] || detectedZone}`)
     }
   }, [formData.originAddress, formData.destinationAddress])
+  */
 
   // Auto-calculate route distance when addresses change
   useEffect(() => {
@@ -1078,88 +1086,88 @@ export default function CalendarPage() {
               </div>
             )}
 
-            {/* Direcciones */}
+            {/* Direcciones y Mapa */}
             <div className="bg-gray-50 p-3 rounded border border-gray-100 space-y-3">
               <h3 className="text-xs font-semibold text-gray-700 flex items-center gap-2">
                 <MapPin className="w-3.5 h-3.5" />
-                Direcciones
+                Direcciones y Ruta
               </h3>
 
-              <div>
-                <Label htmlFor="originAddress">Direccion de Origen (Recoger) *</Label>
-                <Input
-                  id="originAddress"
-                  value={formData.originAddress}
-                  onChange={(e) => setFormData({...formData, originAddress: e.target.value})}
-                  placeholder="Ej: Calle 10 #45-23, Medellin"
-                  required
+              {/* Map - always visible */}
+              <div className="relative">
+                <RouteMap
+                  originCoords={originCoords || undefined}
+                  destinationCoords={destinationCoords || undefined}
+                  routeGeometry={routeGeometry || undefined}
+                  className="h-[200px] border border-gray-200 rounded-lg overflow-hidden"
                 />
-              </div>
-
-              <div>
-                <Label htmlFor="destinationAddress">Direccion de Destino (Llevar) *</Label>
-                <Input
-                  id="destinationAddress"
-                  value={formData.destinationAddress}
-                  onChange={(e) => setFormData({...formData, destinationAddress: e.target.value})}
-                  placeholder="Ej: Carrera 70 #12-34, Envigado"
-                  required
-                />
-              </div>
-
-              {/* Route calculation status - always visible */}
-              <div className={`flex items-center justify-between p-2.5 rounded border text-xs ${
-                routeError ? 'bg-red-50 border-red-200' :
-                isCalculatingRoute ? 'bg-blue-50 border-blue-200' :
-                formData.distanceKm > 0 ? 'bg-green-50 border-green-200' :
-                'bg-gray-50 border-gray-200'
-              }`}>
-                <div className="flex items-center gap-2">
-                  {isCalculatingRoute ? (
-                    <>
-                      <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-blue-600 border-t-transparent"></div>
-                      <span className="text-blue-700">Calculando ruta...</span>
-                    </>
-                  ) : routeError ? (
-                    <>
-                      <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
-                      <span className="text-red-600">{routeError}</span>
-                    </>
-                  ) : formData.distanceKm > 0 ? (
-                    <>
-                      <MapPin className="w-3.5 h-3.5 text-green-600" />
-                      <span className="text-green-700">
-                        Ruta calculada: <strong>{formData.distanceKm} km</strong>
-                        {estimatedDuration && <span className="text-green-600 ml-1">(~{estimatedDuration} min)</span>}
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <MapPin className="w-3.5 h-3.5 text-gray-400" />
-                      <span className="text-gray-500">
-                        {formData.originAddress && formData.destinationAddress
-                          ? 'Escribe direcciones completas para calcular...'
-                          : 'Ingresa ambas direcciones para calcular la ruta'}
-                      </span>
-                    </>
-                  )}
-                </div>
-                {formData.distanceKm > 0 && (
-                  <span className="text-[10px] text-gray-400 bg-white px-1.5 py-0.5 rounded">OpenStreetMap</span>
+                {isCalculatingRoute && (
+                  <div className="absolute inset-0 bg-white/50 flex items-center justify-center rounded-lg">
+                    <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-full shadow">
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent"></div>
+                      <span className="text-sm text-blue-700">Calculando ruta...</span>
+                    </div>
+                  </div>
                 )}
               </div>
 
-              {/* Map visualization */}
-              {(originCoords || destinationCoords || isCalculatingRoute) && (
-                <div className="mt-2">
-                  <RouteMap
-                    originCoords={originCoords || undefined}
-                    destinationCoords={destinationCoords || undefined}
-                    routeGeometry={routeGeometry || undefined}
-                    className="h-[180px] border border-gray-200 rounded-lg overflow-hidden"
-                  />
+              {/* Route info */}
+              {formData.distanceKm > 0 && (
+                <div className="flex items-center justify-between p-2 bg-green-50 border border-green-200 rounded text-xs">
+                  <span className="text-green-700">
+                    <strong>{formData.distanceKm} km</strong>
+                    {estimatedDuration && <span className="ml-1">(~{estimatedDuration} min)</span>}
+                  </span>
+                  <span className="text-[10px] text-gray-400">OpenStreetMap</span>
                 </div>
               )}
+
+              {routeError && (
+                <div className="flex items-center gap-2 p-2 bg-red-50 border border-red-200 rounded text-xs">
+                  <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
+                  <span className="text-red-600">{routeError}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 gap-3">
+                <div>
+                  <Label htmlFor="originAddress" className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                    Origen (Recoger) *
+                  </Label>
+                  <AddressAutocomplete
+                    id="originAddress"
+                    value={formData.originAddress}
+                    onChange={(value, coords) => {
+                      setFormData({...formData, originAddress: value})
+                      if (coords) {
+                        setOriginCoords(coords)
+                      }
+                    }}
+                    placeholder="Escribe para buscar dirección..."
+                    required
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="destinationAddress" className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                    Destino (Llevar) *
+                  </Label>
+                  <AddressAutocomplete
+                    id="destinationAddress"
+                    value={formData.destinationAddress}
+                    onChange={(value, coords) => {
+                      setFormData({...formData, destinationAddress: value})
+                      if (coords) {
+                        setDestinationCoords(coords)
+                      }
+                    }}
+                    placeholder="Escribe para buscar dirección..."
+                    required
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Availability Status */}
