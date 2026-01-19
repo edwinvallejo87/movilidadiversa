@@ -201,9 +201,18 @@ export const generateReceiptPDF = async (data: ReceiptData): Promise<void> => {
   y += 12
 
   // Section: Route
+  doc.setFontSize(10)
+  doc.setFont('helvetica', 'normal')
+
+  // Calculate height needed for addresses (wrap long text)
+  const addressMaxWidth = contentWidth - 20
+  const originLines = doc.splitTextToSize(`Origen: ${data.originAddress}`, addressMaxWidth)
+  const destLines = doc.splitTextToSize(`Destino: ${data.destinationAddress}`, addressMaxWidth)
+  const lineHeight = 5
+  const routeContentHeight = (originLines.length + destLines.length) * lineHeight + (data.distanceKm ? 10 : 5) + 14
+
   doc.setFillColor(245, 247, 250)
-  const routeHeight = data.distanceKm ? 32 : 27
-  doc.roundedRect(margin, y, contentWidth, routeHeight, 2, 2, 'F')
+  doc.roundedRect(margin, y, contentWidth, routeContentHeight, 2, 2, 'F')
   y += 7
 
   doc.setFontSize(11)
@@ -216,26 +225,19 @@ export const generateReceiptPDF = async (data: ReceiptData): Promise<void> => {
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(...darkGray)
 
-  // Truncate addresses if too long
-  const maxAddressLength = 60
-  const originTruncated =
-    data.originAddress.length > maxAddressLength
-      ? data.originAddress.substring(0, maxAddressLength) + '...'
-      : data.originAddress
-  const destTruncated =
-    data.destinationAddress.length > maxAddressLength
-      ? data.destinationAddress.substring(0, maxAddressLength) + '...'
-      : data.destinationAddress
+  // Print origin address (multiline if needed)
+  doc.text(originLines, margin + 5, y)
+  y += originLines.length * lineHeight + 2
 
-  doc.text(`Origen: ${originTruncated}`, margin + 5, y)
-  y += 5
-  doc.text(`Destino: ${destTruncated}`, margin + 5, y)
+  // Print destination address (multiline if needed)
+  doc.text(destLines, margin + 5, y)
+  y += destLines.length * lineHeight
 
   if (data.distanceKm) {
-    y += 5
+    y += 2
     doc.text(`Distancia: ${data.distanceKm} km`, margin + 5, y)
   }
-  y += 12
+  y += 10
 
   // Section: Price Breakdown
   const breakdown = data.pricingSnapshot?.breakdown || []
