@@ -85,9 +85,22 @@ export async function POST(request: NextRequest) {
     const originDetection = detectZoneFromAddress(originAddress)
     const destDetection = detectZoneFromAddress(destinationAddress)
 
-    // Use origin zone for pricing (or destination if origin is not detected)
-    const pricingZone = originDetection.zone || destDetection.zone || 'medellin'
+    // Determine pricing zone:
+    // - If out-of-city, use that
+    // - If one is Medellín and the other is peripheral, use the peripheral zone
+    // - Otherwise use whichever is detected
+    let pricingZone: string
     const isOutOfCity = destDetection.isOutOfCity || originDetection.isOutOfCity
+
+    if (isOutOfCity) {
+      pricingZone = 'fuera-ciudad'
+    } else if (originDetection.zone === 'medellin' && destDetection.zone && destDetection.zone !== 'medellin') {
+      pricingZone = destDetection.zone
+    } else if (destDetection.zone === 'medellin' && originDetection.zone && originDetection.zone !== 'medellin') {
+      pricingZone = originDetection.zone
+    } else {
+      pricingZone = originDetection.zone || destDetection.zone || 'medellin'
+    }
 
     let basePrice = 0
     let zoneName = ''

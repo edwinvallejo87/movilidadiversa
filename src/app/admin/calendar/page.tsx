@@ -179,15 +179,29 @@ export default function CalendarPage() {
     const originZone = detectZoneFromAddress(formData.originAddress)
     const destZone = detectZoneFromAddress(formData.destinationAddress)
 
-    // Determine the primary zone (origin takes priority, except for out-of-city)
-    let detectedZone = originZone || destZone
+    // Determine the primary zone for pricing:
+    // - If out-of-city, use that
+    // - If one is Medellín and the other is peripheral, use the peripheral zone
+    // - Otherwise use whichever is detected
+    let detectedZone: string | null = null
 
-    // If either is out-of-city, use that
+    // If either is out-of-city, prioritize that
     if (originZone === 'fuera-ciudad' || destZone === 'fuera-ciudad') {
       detectedZone = 'fuera-ciudad'
     }
+    // If one is Medellín and other is peripheral, use the peripheral zone
+    else if (originZone === 'medellin' && destZone && destZone !== 'medellin') {
+      detectedZone = destZone
+    }
+    else if (destZone === 'medellin' && originZone && originZone !== 'medellin') {
+      detectedZone = originZone
+    }
+    // Otherwise use whatever is detected (origin first, then dest)
+    else {
+      detectedZone = originZone || destZone
+    }
 
-    // Always update when zone changes (removed condition that prevented updates)
+    // Update when zone changes
     if (detectedZone && detectedZone !== formData.zoneSlug) {
       const originType = detectOriginType(originZone, destZone)
       const outOfCityDest = detectedZone === 'fuera-ciudad'
