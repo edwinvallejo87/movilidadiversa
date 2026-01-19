@@ -85,6 +85,7 @@ export default function CalendarPage() {
   const [outOfCityDestinations, setOutOfCityDestinations] = useState<string[]>([])
   const [currentQuote, setCurrentQuote] = useState<any>(null)
   const [showQuoteBreakdown, setShowQuoteBreakdown] = useState(false)
+  const [rateNotFoundError, setRateNotFoundError] = useState<string | null>(null)
   
   // Availability checking
   const [isCheckingAvailability, setIsCheckingAvailability] = useState(false)
@@ -442,6 +443,7 @@ export default function CalendarPage() {
     if (!formData.zoneSlug || !formData.tripType || !formData.equipmentType) {
       setCurrentQuote(null)
       setFormData(prev => ({...prev, estimatedAmount: 0}))
+      setRateNotFoundError(null)
       return
     }
 
@@ -450,8 +452,12 @@ export default function CalendarPage() {
       setCurrentQuote(null)
       setFormData(prev => ({...prev, estimatedAmount: 0}))
       setShowQuoteBreakdown(false)
+      setRateNotFoundError(null)
       return
     }
+
+    // Clear previous error when starting new calculation
+    setRateNotFoundError(null)
 
     // Auto-detect night schedule and holidays
     const isNightSchedule = formData.scheduledAt ? (() => {
@@ -499,23 +505,27 @@ export default function CalendarPage() {
         const quote = await response.json()
         setCurrentQuote(quote)
         setFormData(prev => ({
-          ...prev, 
+          ...prev,
           estimatedAmount: quote.totalPrice,
           isNightSchedule,
           isHolidayOrSunday
         }))
         setShowQuoteBreakdown(true)
+        setRateNotFoundError(null)
       } else {
-        // Rate not found for this combination - this is expected in some cases
+        // Rate not found for this combination
+        const errorData = await response.json().catch(() => ({}))
         setCurrentQuote(null)
         setFormData(prev => ({...prev, estimatedAmount: 0}))
         setShowQuoteBreakdown(false)
+        setRateNotFoundError(errorData.error || 'Tarifa no encontrada para esta combinación')
       }
     } catch (error) {
       // Network or other error
       setCurrentQuote(null)
       setFormData(prev => ({...prev, estimatedAmount: 0}))
       setShowQuoteBreakdown(false)
+      setRateNotFoundError('Error al calcular la tarifa')
     }
   }
 
@@ -1399,13 +1409,24 @@ export default function CalendarPage() {
               </div>
             )}
 
-            {/* Indicador cuando se está calculando */}
+            {/* Indicador cuando se está calculando o error de tarifa */}
             {formData.zoneSlug && formData.staffId && formData.estimatedAmount === 0 && (
-              <div className="bg-gray-50 p-3 rounded border border-gray-100">
-                <div className="flex items-center gap-2">
-                  <div className="animate-pulse w-3 h-3 bg-gray-300 rounded-full"></div>
-                  <span className="text-xs text-gray-500">Calculando tarifa...</span>
-                </div>
+              <div className={`p-3 rounded border ${rateNotFoundError ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-100'}`}>
+                {rateNotFoundError ? (
+                  <div className="flex items-start gap-2">
+                    <span className="text-red-500 text-sm">⚠️</span>
+                    <div>
+                      <p className="text-xs font-medium text-red-700">Tarifa no definida</p>
+                      <p className="text-xs text-red-600 mt-0.5">{rateNotFoundError}</p>
+                      <p className="text-xs text-red-500 mt-1">Debe agregar esta tarifa en Configuración → Tarifas</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <div className="animate-pulse w-3 h-3 bg-gray-300 rounded-full"></div>
+                    <span className="text-xs text-gray-500">Calculando tarifa...</span>
+                  </div>
+                )}
               </div>
             )}
 

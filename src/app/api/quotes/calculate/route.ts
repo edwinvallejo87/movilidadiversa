@@ -122,12 +122,13 @@ export async function POST(request: NextRequest) {
 
     // CASE 1: Out of city destination
     if (zoneSlug === 'fuera-ciudad' && outOfCityDestination) {
+      // For out-of-city, always use DESDE_MEDELLIN as that's how rates are defined
       const destination = await prisma.outOfCityDestination.findFirst({
         where: {
           name: outOfCityDestination,
           tripType: tripType,
           equipmentType: equipmentType === 'ROBOTICA_PLEGABLE' ? 'RAMPA' : equipmentType, // Out of city only has RAMPA base
-          originType: originType || 'DESDE_MEDELLIN'
+          originType: 'DESDE_MEDELLIN'
         }
       })
 
