@@ -3,14 +3,28 @@ import { prisma } from '@/lib/prisma'
 
 export async function GET() {
   try {
-    // Get today's date range
-    const today = new Date()
-    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-    const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1)
+    // Get today's date range in Colombia timezone (UTC-5)
+    const now = new Date()
+    const colombiaOffset = -5 * 60 // UTC-5 in minutes
+    const localOffset = now.getTimezoneOffset()
+    const colombiaTime = new Date(now.getTime() + (localOffset - colombiaOffset) * 60 * 1000)
 
-    // Get start and end of current month
-    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
-    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59)
+    const startOfDay = new Date(Date.UTC(
+      colombiaTime.getFullYear(),
+      colombiaTime.getMonth(),
+      colombiaTime.getDate(),
+      5, 0, 0, 0 // 00:00 Colombia = 05:00 UTC
+    ))
+    const endOfDay = new Date(Date.UTC(
+      colombiaTime.getFullYear(),
+      colombiaTime.getMonth(),
+      colombiaTime.getDate() + 1,
+      5, 0, 0, 0 // 00:00 next day Colombia = 05:00 UTC
+    ))
+
+    // Get start and end of current month (in Colombia timezone)
+    const startOfMonth = new Date(Date.UTC(colombiaTime.getFullYear(), colombiaTime.getMonth(), 1, 5, 0, 0))
+    const endOfMonth = new Date(Date.UTC(colombiaTime.getFullYear(), colombiaTime.getMonth() + 1, 1, 4, 59, 59))
 
     // Fetch all stats in parallel
     const [
