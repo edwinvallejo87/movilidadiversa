@@ -179,14 +179,15 @@ export default function CalendarPage() {
     const originZone = detectZoneFromAddress(formData.originAddress)
     const destZone = detectZoneFromAddress(formData.destinationAddress)
 
-    // Determine the primary zone (destination takes priority for out-of-city)
-    let detectedZone = destZone || originZone
+    // Determine the primary zone (origin takes priority, except for out-of-city)
+    let detectedZone = originZone || destZone
 
     // If either is out-of-city, use that
     if (originZone === 'fuera-ciudad' || destZone === 'fuera-ciudad') {
       detectedZone = 'fuera-ciudad'
     }
 
+    // Always update when zone changes (removed condition that prevented updates)
     if (detectedZone && detectedZone !== formData.zoneSlug) {
       const originType = detectOriginType(originZone, destZone)
       const outOfCityDest = detectedZone === 'fuera-ciudad'

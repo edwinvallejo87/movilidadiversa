@@ -85,8 +85,8 @@ export async function POST(request: NextRequest) {
     const originDetection = detectZoneFromAddress(originAddress)
     const destDetection = detectZoneFromAddress(destinationAddress)
 
-    // Use destination zone for pricing (or origin if destination is not detected)
-    const pricingZone = destDetection.zone || originDetection.zone || 'medellin'
+    // Use origin zone for pricing (or destination if origin is not detected)
+    const pricingZone = originDetection.zone || destDetection.zone || 'medellin'
     const isOutOfCity = destDetection.isOutOfCity || originDetection.isOutOfCity
 
     let basePrice = 0
