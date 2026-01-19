@@ -90,9 +90,14 @@ export async function GET(request: NextRequest) {
     // Simulate average rating (in real app, this would come from a ratings table)
     const averageRating = 4.2 + (Math.random() * 0.6) // Random between 4.2-4.8
 
-    // Top services
+    // Top services (based on equipment type)
+    const equipmentLabels: Record<string, string> = {
+      'RAMPA': 'Vehículo con Rampa',
+      'ROBOTICA_PLEGABLE': 'Silla Robótica/Plegable'
+    }
+
     const serviceStats = appointments.reduce((acc, apt) => {
-      const serviceName = apt.service?.name || 'Desconocido'
+      const serviceName = equipmentLabels[apt.equipmentType] || apt.equipmentType || 'Desconocido'
       if (!acc[serviceName]) {
         acc[serviceName] = { count: 0, revenue: 0 }
       }
