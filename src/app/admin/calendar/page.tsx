@@ -15,6 +15,7 @@ import { toast } from 'sonner'
 import { Calendar as CalendarIcon, User, Wrench, Car, AlertTriangle, ClipboardList, DollarSign, MapPin, Download } from 'lucide-react'
 import { PageHeader } from '@/components/admin'
 import { generateReceiptPDF, ReceiptData } from '@/lib/generate-receipt-pdf'
+import { calculateDistanceBetweenAddresses } from '@/lib/route-calculator'
 
 // Configurar moment en español
 moment.locale('es')
@@ -91,6 +92,11 @@ export default function CalendarPage() {
   const [showReceiptModal, setShowReceiptModal] = useState(false)
   const [createdAppointmentId, setCreatedAppointmentId] = useState<string | null>(null)
   const [isDownloadingReceipt, setIsDownloadingReceipt] = useState(false)
+
+  // Route calculation
+  const [isCalculatingRoute, setIsCalculatingRoute] = useState(false)
+  const [routeError, setRouteError] = useState<string | null>(null)
+  const [estimatedDuration, setEstimatedDuration] = useState<number | null>(null)
 
   // Zone detection from address
   const detectZoneFromAddress = (address: string): string | null => {
@@ -196,6 +202,52 @@ export default function CalendarPage() {
       }
       toast.info(`Zona detectada: ${zoneNames[detectedZone] || detectedZone}`)
     }
+  }, [formData.originAddress, formData.destinationAddress])
+
+  // Auto-calculate route distance when addresses change
+  useEffect(() => {
+    const calculateRoute = async () => {
+      // Need both addresses with minimum length
+      if (!formData.originAddress || !formData.destinationAddress) {
+        setRouteError(null)
+        setEstimatedDuration(null)
+        return
+      }
+
+      if (formData.originAddress.length < 10 || formData.destinationAddress.length < 10) {
+        return // Wait for more complete addresses
+      }
+
+      setIsCalculatingRoute(true)
+      setRouteError(null)
+
+      try {
+        const result = await calculateDistanceBetweenAddresses(
+          formData.originAddress,
+          formData.destinationAddress
+        )
+
+        if (result.success) {
+          setFormData(prev => ({
+            ...prev,
+            distanceKm: result.distanceKm
+          }))
+          setEstimatedDuration(result.durationMinutes)
+          setRouteError(null)
+          toast.success(`Distancia calculada: ${result.distanceKm} km (~${result.durationMinutes} min)`)
+        } else {
+          setRouteError(result.error || 'Error calculando ruta')
+        }
+      } catch (error) {
+        setRouteError('Error al calcular la ruta')
+      } finally {
+        setIsCalculatingRoute(false)
+      }
+    }
+
+    // Debounce: wait 1.5 seconds after user stops typing
+    const timeoutId = setTimeout(calculateRoute, 1500)
+    return () => clearTimeout(timeoutId)
   }, [formData.originAddress, formData.destinationAddress])
 
   useEffect(() => {
@@ -352,6 +404,8 @@ export default function CalendarPage() {
     setShowQuoteBreakdown(false)
     setIsEditMode(false)
     setEditingAppointmentId(null)
+    setRouteError(null)
+    setEstimatedDuration(null)
   }
 
   const checkAvailability = async () => {
@@ -1026,6 +1080,35 @@ export default function CalendarPage() {
                   required
                 />
               </div>
+
+              {/* Route calculation status */}
+              {(isCalculatingRoute || formData.distanceKm > 0 || routeError) && (
+                <div className={`flex items-center gap-2 p-2 rounded text-xs ${
+                  routeError ? 'bg-red-50 border border-red-100' :
+                  isCalculatingRoute ? 'bg-gray-100' :
+                  'bg-green-50 border border-green-100'
+                }`}>
+                  {isCalculatingRoute ? (
+                    <>
+                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600"></div>
+                      <span className="text-gray-600">Calculando ruta con OpenStreetMap...</span>
+                    </>
+                  ) : routeError ? (
+                    <>
+                      <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
+                      <span className="text-red-600">{routeError}</span>
+                    </>
+                  ) : formData.distanceKm > 0 ? (
+                    <>
+                      <MapPin className="w-3.5 h-3.5 text-green-600" />
+                      <span className="text-green-700">
+                        <strong>{formData.distanceKm} km</strong>
+                        {estimatedDuration && ` (~${estimatedDuration} min)`}
+                      </span>
+                    </>
+                  ) : null}
+                </div>
+              )}
             </div>
 
             {/* Availability Status */}
