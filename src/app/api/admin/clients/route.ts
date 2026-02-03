@@ -1,10 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url)
+    const search = searchParams.get('search') || ''
+    const limit = parseInt(searchParams.get('limit') || '20')
+    const offset = parseInt(searchParams.get('offset') || '0')
+
+    // Build where clause for search
+    const where = search ? {
+      OR: [
+        { name: { contains: search, mode: 'insensitive' as const } },
+        { email: { contains: search, mode: 'insensitive' as const } },
+        { phone: { contains: search } },
+        { document: { contains: search } }
+      ]
+    } : {}
+
+    // Get total count
+    const total = await prisma.customer.count({ where })
+
+    // Get paginated customers
     const customers = await prisma.customer.findMany({
+      where,
       orderBy: { name: 'asc' },
+      skip: offset,
+      take: limit,
       include: {
         _count: {
           select: { appointments: true }
@@ -12,7 +34,7 @@ export async function GET() {
       }
     })
 
-    return NextResponse.json({ customers })
+    return NextResponse.json({ customers, total })
   } catch (error) {
     console.error('Clients API error:', error)
     return NextResponse.json(

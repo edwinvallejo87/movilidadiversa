@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { PlusCircle, Edit, Trash2, Search, User, Phone, Mail, Accessibility, PersonStanding, Activity } from 'lucide-react'
+import { PlusCircle, Edit, Trash2, Search, User, Phone, Mail, Accessibility, PersonStanding, Activity, ChevronLeft, ChevronRight } from 'lucide-react'
 import { PageHeader } from '@/components/admin'
 import { toast } from 'sonner'
 
@@ -37,12 +37,19 @@ interface Customer {
   }
 }
 
+const ITEMS_PER_PAGE = 20
+
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+  const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE)
 
   const [formData, setFormData] = useState({
     name: '',
@@ -62,34 +69,55 @@ export default function CustomersPage() {
     isActive: true
   })
 
-  const fetchCustomers = async (search?: string) => {
+  const fetchCustomers = async (search?: string, page: number = 1) => {
     try {
       const searchParams = new URLSearchParams()
       if (search) searchParams.set('search', search)
-      
+      searchParams.set('limit', ITEMS_PER_PAGE.toString())
+      searchParams.set('offset', ((page - 1) * ITEMS_PER_PAGE).toString())
+
       const response = await fetch(`/api/admin/clients?${searchParams}`)
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`)
       }
       const data = await response.json()
-      // Handle both array and { customers: [...] } format
-      setCustomers(Array.isArray(data) ? data : (data?.customers || []))
+
+      // Handle both formats: { customers, total } or array
+      if (data.customers) {
+        setCustomers(data.customers)
+        setTotalCount(data.total || data.customers.length)
+      } else if (Array.isArray(data)) {
+        setCustomers(data)
+        setTotalCount(data.length)
+      } else {
+        setCustomers([])
+        setTotalCount(0)
+      }
     } catch (error) {
       console.error('Error loading customers:', error)
-      toast.error('Error al cargar los clientes - Verifica la configuración de autenticación')
+      toast.error('Error al cargar los clientes')
       setCustomers([])
+      setTotalCount(0)
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    fetchCustomers()
-  }, [])
+    fetchCustomers(searchTerm, currentPage)
+  }, [currentPage])
 
   const handleSearch = () => {
+    setCurrentPage(1)
     setLoading(true)
-    fetchCustomers(searchTerm)
+    fetchCustomers(searchTerm, 1)
+  }
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setLoading(true)
+      setCurrentPage(newPage)
+    }
   }
 
   const resetForm = () => {
@@ -114,7 +142,7 @@ export default function CustomersPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     try {
       if (editingCustomer) {
         const response = await fetch(`/api/admin/client/${editingCustomer.id}`, {
@@ -147,7 +175,7 @@ export default function CustomersPage() {
       setIsCreateDialogOpen(false)
       setEditingCustomer(null)
       resetForm()
-      fetchCustomers(searchTerm)
+      fetchCustomers(searchTerm, currentPage)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Error al guardar')
     }
@@ -189,7 +217,7 @@ export default function CustomersPage() {
       }
 
       toast.success('Cliente desactivado correctamente')
-      fetchCustomers(searchTerm)
+      fetchCustomers(searchTerm, currentPage)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Error al desactivar')
     }
@@ -214,7 +242,7 @@ export default function CustomersPage() {
     }
   }
 
-  if (loading) {
+  if (loading && customers.length === 0) {
     return <div className="flex justify-center items-center h-64">Cargando...</div>
   }
 
@@ -222,7 +250,7 @@ export default function CustomersPage() {
     <div>
       <PageHeader
         title="Gestion de Clientes"
-        description="Administra la base de datos de clientes"
+        description={`${totalCount} clientes en total`}
       />
 
       <div className="flex justify-end mb-4">
@@ -248,7 +276,7 @@ export default function CustomersPage() {
                 Completa la información del cliente
               </DialogDescription>
             </DialogHeader>
-            
+
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -457,9 +485,8 @@ export default function CustomersPage() {
               <tr>
                 <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-500 uppercase">Cliente</th>
                 <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-500 uppercase">Contacto</th>
-                <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-500 uppercase">Movilidad</th>
-                <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-500 uppercase">Necesidades</th>
-                <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-500 uppercase">Emergencia</th>
+                <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-500 uppercase">Edad/Peso</th>
+                <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-500 uppercase">Dirección</th>
                 <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-500 uppercase">Citas</th>
                 <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-500 uppercase">Estado</th>
                 <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-500 uppercase">Acciones</th>
@@ -493,35 +520,17 @@ export default function CustomersPage() {
                       )}
                     </div>
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-2 text-gray-600">
                     <div className="space-y-0.5">
-                      <div className="flex items-center gap-1.5">
-                        {getMobilityAidIcon(customer.mobilityAid)}
-                        <span className="text-gray-600">{getMobilityAidLabel(customer.mobilityAid)}</span>
-                      </div>
-                      {customer.requiresAssistant && (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-yellow-100 text-yellow-800">
-                          Requiere asistente
-                        </span>
-                      )}
+                      {customer.age && <div>{customer.age} años</div>}
+                      {customer.weight && <div>{customer.weight} kg</div>}
+                      {!customer.age && !customer.weight && <span className="text-gray-400">-</span>}
                     </div>
                   </td>
                   <td className="px-3 py-2">
-                    {customer.medicalNeeds ? (
-                      <div className="text-gray-600 max-w-[120px] truncate" title={customer.medicalNeeds}>
-                        {customer.medicalNeeds}
-                      </div>
-                    ) : (
-                      <span className="text-gray-400">-</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2">
-                    {customer.emergencyContact ? (
-                      <div className="text-gray-600">
-                        <div>{customer.emergencyContact}</div>
-                        {customer.emergencyPhone && (
-                          <div className="text-[10px] text-gray-400">{customer.emergencyPhone}</div>
-                        )}
+                    {customer.address ? (
+                      <div className="text-gray-600 max-w-[200px] truncate" title={customer.address}>
+                        {customer.address}
                       </div>
                     ) : (
                       <span className="text-gray-400">-</span>
@@ -563,9 +572,62 @@ export default function CustomersPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
+            <div className="text-xs text-gray-500">
+              Mostrando {((currentPage - 1) * ITEMS_PER_PAGE) + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, totalCount)} de {totalCount}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1 || loading}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum: number
+                  if (totalPages <= 5) {
+                    pageNum = i + 1
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i
+                  } else {
+                    pageNum = currentPage - 2 + i
+                  }
+                  return (
+                    <Button
+                      key={pageNum}
+                      variant={currentPage === pageNum ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => handlePageChange(pageNum)}
+                      disabled={loading}
+                      className="w-8 h-8 p-0"
+                    >
+                      {pageNum}
+                    </Button>
+                  )
+                })}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages || loading}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {customers.length === 0 && (
+      {customers.length === 0 && !loading && (
         <div className="text-center py-8">
           <p className="text-gray-500">No se encontraron clientes</p>
         </div>
