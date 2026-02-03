@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { z } from 'zod'
+import { requireAuth } from '@/lib/api-auth'
 
 const UpdateStaffSchema = z.object({
-  name: z.string().min(2).optional(),
+  name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres').optional(),
   type: z.enum(['DRIVER', 'VEHICLE', 'ASSISTANT']).optional(),
   status: z.enum(['AVAILABLE', 'BUSY', 'OFFLINE', 'MAINTENANCE']).optional(),
   phone: z.string().optional(),
-  email: z.string().email().optional().or(z.literal('')),
+  email: z.string().email('El correo no es válido').optional().nullable().or(z.literal('')),
   color: z.string().optional(),
   licensePlate: z.string().optional(),
   vehicleModel: z.string().optional(),
@@ -25,6 +26,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { error } = await requireAuth()
+  if (error) return error
+
   try {
     const { id } = await params
     const staff = await db.staff.findUnique({
@@ -74,6 +78,9 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { error } = await requireAuth()
+  if (error) return error
+
   try {
     const { id } = await params
     const body = await request.json()
@@ -127,8 +134,11 @@ export async function PUT(
     console.error('Error updating staff:', error)
     
     if (error instanceof z.ZodError) {
+      const firstError = error.issues[0]
+      const fieldName = firstError.path.join('.')
+      const message = firstError.message
       return NextResponse.json(
-        { error: 'Invalid data', details: error.issues },
+        { error: `${message} (campo: ${fieldName})`, details: error.issues },
         { status: 400 }
       )
     }
@@ -144,6 +154,9 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { error } = await requireAuth()
+  if (error) return error
+
   try {
     const { id } = await params
     // Verificar que el staff existe

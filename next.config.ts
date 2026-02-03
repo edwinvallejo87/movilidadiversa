@@ -1,6 +1,15 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'assets.zyrosite.com',
+        pathname: '/**',
+      },
+    ],
+  },
   // Force complete cache invalidation for every build
   generateBuildId: async () => {
     // Generate unique build ID based on current timestamp and random string

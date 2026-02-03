@@ -12,8 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
-import { Calendar as CalendarIcon, User, Wrench, Car, AlertTriangle, ClipboardList, DollarSign, MapPin, Download } from 'lucide-react'
-import { PageHeader } from '@/components/admin'
+import { Calendar as CalendarIcon, User, Wrench, Car, AlertTriangle, ClipboardList, DollarSign, MapPin, Download, MessageCircle, Copy } from 'lucide-react'
+import { PageHeader, CreateCustomerDialog, CustomerSearch, StaffSearch } from '@/components/admin'
 import { generateReceiptPDF, ReceiptData } from '@/lib/generate-receipt-pdf'
 import AddressAutocomplete from '@/components/AddressAutocomplete'
 import RouteMap from '@/components/RouteMap'
@@ -48,6 +48,7 @@ export default function CalendarPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showDetailsModal, setShowDetailsModal] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState<AppointmentEvent | null>(null)
+  const [selectedAppointmentDetails, setSelectedAppointmentDetails] = useState<any>(null)
   const [selectedSlot, setSelectedSlot] = useState<any>(null)
   const [isEditMode, setIsEditMode] = useState(false)
   const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null)
@@ -353,9 +354,20 @@ export default function CalendarPage() {
     }
   }
 
-  const handleSelectEvent = (event: AppointmentEvent) => {
+  const handleSelectEvent = async (event: AppointmentEvent) => {
     setSelectedEvent(event)
     setShowDetailsModal(true)
+
+    // Fetch full appointment details including pricingSnapshot
+    try {
+      const response = await fetch(`/api/appointments/${event.appointmentId}`)
+      if (response.ok) {
+        const appointmentData = await response.json()
+        setSelectedAppointmentDetails(appointmentData)
+      }
+    } catch {
+      // Silently fail - we still have basic event data
+    }
   }
 
   const handleSelectSlot = (slotInfo: any) => {
@@ -633,6 +645,44 @@ export default function CalendarPage() {
 
       const appointment = await response.json()
 
+      // Extract additional services from pricingSnapshot
+      let savedAdditionalServices: any[] = []
+      if (appointment.pricingSnapshot) {
+        try {
+          const pricingData = typeof appointment.pricingSnapshot === 'string'
+            ? JSON.parse(appointment.pricingSnapshot)
+            : appointment.pricingSnapshot
+
+          if (pricingData.breakdown && Array.isArray(pricingData.breakdown)) {
+            // Find items that are additional services (have type or code, or match by name)
+            savedAdditionalServices = pricingData.breakdown
+              .filter((item: any) => {
+                // If it has type 'additional_service', use it
+                if (item.type === 'additional_service') return true
+                // Otherwise try to match by name with available services
+                if (item.code) return true
+                // Try to find in additionalServicesList by name
+                return additionalServicesList.some(s => s.name === item.item)
+              })
+              .map((item: any) => {
+                // If it has a code, use it directly
+                if (item.code) {
+                  return { code: item.code, quantity: item.quantity || 1 }
+                }
+                // Otherwise find by name
+                const matchedService = additionalServicesList.find(s => s.name === item.item)
+                if (matchedService) {
+                  return { code: matchedService.code, quantity: item.quantity || 1 }
+                }
+                return null
+              })
+              .filter(Boolean)
+          }
+        } catch {
+          // Ignore parsing errors
+        }
+      }
+
       // Pre-fill form with appointment data
       setFormData({
         customerId: appointment.customerId || '',
@@ -649,7 +699,7 @@ export default function CalendarPage() {
         distanceKm: appointment.distanceKm || 0,
         outOfCityDestination: '',
         extraKm: 0,
-        additionalServices: [],
+        additionalServices: savedAdditionalServices,
         isNightSchedule: false,
         isHolidayOrSunday: false
       })
@@ -663,17 +713,35 @@ export default function CalendarPage() {
     }
   }
 
+  // Handle new customer created from dialog
+  const handleCustomerCreated = (newCustomer: { id: string; name: string; phone: string }) => {
+    setCustomers(prev => [...prev, newCustomer])
+    setFormData(prev => ({ ...prev, customerId: newCustomer.id }))
+    toast.info(`Cliente "${newCustomer.name}" seleccionado`)
+  }
+
   // Handle create or update appointment
   const handleSubmitAppointment = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!formData.customerId || !formData.scheduledAt) {
-      toast.error('Por favor complete todos los campos obligatorios')
+    // Validación con mensajes específicos
+    if (!formData.customerId) {
+      toast.error('Debe seleccionar un cliente')
       return
     }
 
-    if (!formData.originAddress || !formData.destinationAddress) {
-      toast.error('Por favor ingrese las direcciones de origen y destino')
+    if (!formData.scheduledAt) {
+      toast.error('Debe seleccionar fecha y hora')
+      return
+    }
+
+    if (!formData.originAddress) {
+      toast.error('Debe ingresar la dirección de origen')
+      return
+    }
+
+    if (!formData.destinationAddress) {
+      toast.error('Debe ingresar la dirección de destino')
       return
     }
 
@@ -688,9 +756,8 @@ export default function CalendarPage() {
       const selectedStaff = staff.find(s => s.id === formData.staffId)
       const equipmentType = selectedStaff?.equipmentType || formData.equipmentType
 
-      const payload = {
+      const payload: Record<string, unknown> = {
         customerId: formData.customerId,
-        staffId: formData.staffId || null,
         scheduledAt: new Date(formData.scheduledAt).toISOString(),
         originAddress: formData.originAddress,
         destinationAddress: formData.destinationAddress,
@@ -699,6 +766,11 @@ export default function CalendarPage() {
         distanceKm: formData.distanceKm || 0,
         pricingBreakdown: currentQuote?.breakdown || undefined,
         equipmentType
+      }
+
+      // Solo agregar staffId si está seleccionado
+      if (formData.staffId) {
+        payload.staffId = formData.staffId
       }
 
       let response
@@ -759,6 +831,7 @@ export default function CalendarPage() {
 
       toast.success(`Estado cambiado a ${newStatus}`)
       setShowDetailsModal(false)
+      setSelectedAppointmentDetails(null)
       loadAppointments()
     } catch (error) {
       toast.error('Error al cambiar estado')
@@ -830,6 +903,146 @@ export default function CalendarPage() {
       toast.error('Error al descargar recibo')
     } finally {
       setIsDownloadingReceipt(false)
+    }
+  }
+
+  // Generate service order text for WhatsApp
+  const generateServiceOrderText = (event: AppointmentEvent) => {
+    const scheduledDate = moment(event.start).format('dddd D [de] MMMM')
+    const scheduledTime = moment(event.start).format('h:mm A')
+
+    // Find full customer and staff data
+    const customer = customers.find(c => c.id === event.customerId)
+    const staffMember = staff.find(s => s.id === event.staffId)
+
+    let text = `*SERVICIO PROGRAMADO*\n\n`
+
+    text += `Fecha: ${scheduledDate.charAt(0).toUpperCase() + scheduledDate.slice(1)}\n`
+    text += `Hora: ${scheduledTime}\n\n`
+
+    text += `------------------------\n\n`
+
+    text += `*CLIENTE*\n`
+    text += `${event.customerName}\n`
+    if (customer?.phone) {
+      text += `Tel: ${customer.phone}\n`
+    }
+    text += `\n`
+
+    text += `*RECOGER EN:*\n`
+    text += `${event.originAddress}\n\n`
+
+    text += `*LLEVAR A:*\n`
+    text += `${event.destinationAddress}\n\n`
+
+    text += `------------------------\n\n`
+
+    text += `Vehiculo: ${event.equipmentType === 'RAMPA' ? 'Rampa' : event.equipmentType === 'ROBOTICA_PLEGABLE' ? 'Robotica' : event.equipmentType}\n`
+
+    // Extract additional services from pricingSnapshot
+    if (selectedAppointmentDetails?.pricingSnapshot) {
+      try {
+        const pricingData = typeof selectedAppointmentDetails.pricingSnapshot === 'string'
+          ? JSON.parse(selectedAppointmentDetails.pricingSnapshot)
+          : selectedAppointmentDetails.pricingSnapshot
+
+        if (pricingData.breakdown && Array.isArray(pricingData.breakdown)) {
+          // Items to exclude (base rates, km charges, surcharges)
+          const excludePatterns = [
+            /viaje.*sencillo/i,
+            /viaje.*doble/i,
+            /viaje.*redondo/i,
+            /tarifa.*base/i,
+            /kilometro/i,
+            /km.*adicional/i,
+            /recargo.*nocturno/i,
+            /recargo.*dominical/i,
+            /recargo.*festivo/i
+          ]
+
+          const additionalServices = pricingData.breakdown.filter((item: any) => {
+            // If it has type 'additional_service', include it
+            if (item.type === 'additional_service') return true
+            // If it has a code that matches our additional services list
+            if (item.code && additionalServicesList.some(s => s.code === item.code)) return true
+            // If the name matches an additional service
+            if (additionalServicesList.some(s => s.name === item.item)) return true
+            // Exclude known base rate / surcharge patterns
+            if (excludePatterns.some(pattern => pattern.test(item.item))) return false
+            // Include items that look like additional services (silla robotica, espera, etc)
+            if (/silla.*robot|espera|acompan|piso/i.test(item.item)) return true
+            return false
+          })
+
+          if (additionalServices.length > 0) {
+            text += `\n*SERVICIOS ADICIONALES:*\n`
+            additionalServices.forEach((svc: any) => {
+              const qty = svc.quantity && svc.quantity > 1 ? ` x${svc.quantity}` : ''
+              text += `- ${svc.item}${qty}\n`
+            })
+          }
+        }
+      } catch {
+        // Ignore parsing errors
+      }
+    }
+
+    if (customer) {
+      const hasCustomerData = customer.age || customer.weight || customer.wheelchairType || customer.emergencyContact
+      if (hasCustomerData) {
+        text += `\n*DATOS DEL PASAJERO:*\n`
+        if (customer.age) text += `Edad: ${customer.age} anos\n`
+        if (customer.weight) text += `Peso: ${customer.weight} kg\n`
+        if (customer.wheelchairType && customer.wheelchairType !== 'none') {
+          const wheelchairLabels: Record<string, string> = {
+            'manual-plegable': 'Manual plegable',
+            'manual-rigida': 'Manual rigida',
+            'electrica': 'Electrica/Motorizada',
+            'traslado': 'De traslado',
+            'bariatrica': 'Bariatrica',
+            'neurologica': 'Neurologica/Postural',
+          }
+          text += `Silla: ${wheelchairLabels[customer.wheelchairType] || customer.wheelchairType}\n`
+        }
+        if (customer.emergencyContact) {
+          text += `Emergencia: ${customer.emergencyContact}\n`
+        }
+      }
+    }
+
+    text += `\n------------------------\n`
+    text += `Confirmar recibido`
+
+    return text
+  }
+
+  const handleCopyServiceOrder = async () => {
+    if (!selectedEvent) return
+
+    const text = generateServiceOrderText(selectedEvent)
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success('Orden copiada al portapapeles')
+    } catch {
+      toast.error('No se pudo copiar')
+    }
+  }
+
+  const handleSendWhatsApp = () => {
+    if (!selectedEvent) return
+
+    const staffMember = staff.find(s => s.id === selectedEvent.staffId)
+    const text = generateServiceOrderText(selectedEvent)
+    const encodedText = encodeURIComponent(text)
+
+    if (staffMember?.phone) {
+      let phone = staffMember.phone.replace(/\D/g, '')
+      if (!phone.startsWith('57') && phone.length === 10) {
+        phone = '57' + phone
+      }
+      window.open(`https://wa.me/${phone}?text=${encodedText}`, '_blank')
+    } else {
+      window.open(`https://wa.me/?text=${encodedText}`, '_blank')
     }
   }
 
@@ -985,59 +1198,68 @@ export default function CalendarPage() {
           <form onSubmit={handleSubmitAppointment} className="space-y-3">
             <div>
               <Label htmlFor="customerId">Cliente *</Label>
-              <Select value={formData.customerId} onValueChange={(value) => setFormData({...formData, customerId: value})}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar cliente" />
-                </SelectTrigger>
-                <SelectContent>
-                  {customers && customers.length > 0 ? customers.map((customer) => (
-                    <SelectItem key={customer.id} value={customer.id}>
-                      {customer.name} - {customer.phone}
-                    </SelectItem>
-                  )) : (
-                    <div className="text-gray-500 px-2 py-1 text-sm">No hay clientes disponibles</div>
-                  )}
-                </SelectContent>
-              </Select>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <CustomerSearch
+                    customers={customers}
+                    value={formData.customerId}
+                    onChange={(value) => {
+                      const selectedCustomer = customers.find(c => c.id === value)
+
+                      // Construir notas con datos del cliente
+                      let autoNotes = ''
+                      if (selectedCustomer) {
+                        const infoParts = []
+                        if (selectedCustomer.age) infoParts.push(`Edad: ${selectedCustomer.age} años`)
+                        if (selectedCustomer.weight) infoParts.push(`Peso: ${selectedCustomer.weight} kg`)
+                        if (selectedCustomer.wheelchairType) {
+                          const wheelchairLabels: Record<string, string> = {
+                            'MANUAL_PLEGABLE': 'Manual plegable',
+                            'MANUAL_RIGIDA': 'Manual rígida',
+                            'ELECTRICA': 'Eléctrica/Motorizada',
+                            'TRANSPORTE': 'De traslado',
+                            'BARIATRICA': 'Bariátrica',
+                            'NEUROLOGICA': 'Neurológica/Postural',
+                            'NO_TIENE': 'No tiene silla'
+                          }
+                          infoParts.push(`Silla: ${wheelchairLabels[selectedCustomer.wheelchairType] || selectedCustomer.wheelchairType}`)
+                        }
+                        if (selectedCustomer.emergencyContact) {
+                          infoParts.push(`Emergencia: ${selectedCustomer.emergencyContact}`)
+                        }
+                        if (infoParts.length > 0) {
+                          autoNotes = infoParts.join(' | ')
+                        }
+                      }
+
+                      setFormData({
+                        ...formData,
+                        customerId: value,
+                        notes: autoNotes,
+                        originAddress: selectedCustomer?.defaultAddress || formData.originAddress
+                      })
+                    }}
+                    placeholder="Buscar por nombre, cedula o telefono..."
+                  />
+                </div>
+                <CreateCustomerDialog onCustomerCreated={handleCustomerCreated} />
+              </div>
             </div>
 
             <div>
-              <Label htmlFor="staffId">Conductor + Vehículo *</Label>
-              <Select
-                value={formData.staffId || 'none'}
-                onValueChange={(value) => {
-                  const selectedMember = staff.find(s => s.id === value)
+              <Label htmlFor="staffId">Conductor + Vehículo</Label>
+              <StaffSearch
+                staff={staff}
+                value={formData.staffId}
+                onChange={(staffId, equipmentType) => {
                   setFormData({
                     ...formData,
-                    staffId: value === 'none' ? '' : value,
-                    equipmentType: selectedMember?.equipmentType || 'RAMPA'
+                    staffId: staffId,
+                    equipmentType: equipmentType || 'RAMPA'
                   })
                 }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar conductor" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Sin asignar</SelectItem>
-                  {staff && staff.length > 0 ? staff.filter(s => s.isActive && s.status === 'AVAILABLE').map((member) => (
-                    <SelectItem key={member.id} value={member.id}>
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-2.5 h-2.5 rounded-full"
-                          style={{ backgroundColor: member.color || '#3B82F6' }}
-                        />
-                        <span>{member.name}</span>
-                        {member.licensePlate && (
-                          <span className="text-gray-400 text-xs">({member.licensePlate})</span>
-                        )}
-                        <Badge variant="outline" className="text-[10px] px-1 py-0">
-                          {member.equipmentType === 'ROBOTICA_PLEGABLE' ? 'Robótica' : 'Rampa'}
-                        </Badge>
-                      </div>
-                    </SelectItem>
-                  )) : null}
-                </SelectContent>
-              </Select>
+                placeholder="Buscar por nombre o placa..."
+              />
             </div>
 
             {/* Show selected equipment type */}
@@ -1534,18 +1756,39 @@ export default function CalendarPage() {
               )}
 
               {/* Botones */}
-              <div className="flex justify-between pt-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleDownloadReceipt(selectedEvent.appointmentId)}
-                  disabled={isDownloadingReceipt}
-                >
-                  <Download className="w-3.5 h-3.5 mr-1.5" />
-                  {isDownloadingReceipt ? 'Descargando...' : 'Descargar Recibo'}
-                </Button>
-                <div className="flex gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => setShowDetailsModal(false)}>
+              <div className="flex flex-col gap-2 pt-2">
+                {/* Fila de acciones */}
+                <div className="flex gap-2 flex-wrap">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDownloadReceipt(selectedEvent.appointmentId)}
+                    disabled={isDownloadingReceipt}
+                  >
+                    <Download className="w-3.5 h-3.5 mr-1.5" />
+                    {isDownloadingReceipt ? 'Descargando...' : 'Recibo PDF'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCopyServiceOrder}
+                  >
+                    <Copy className="w-3.5 h-3.5 mr-1.5" />
+                    Copiar Orden
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSendWhatsApp}
+                    className="text-green-600 border-green-600 hover:bg-green-50"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5 mr-1.5" />
+                    WhatsApp
+                  </Button>
+                </div>
+                {/* Fila de navegación */}
+                <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+                  <Button variant="ghost" size="sm" onClick={() => { setShowDetailsModal(false); setSelectedAppointmentDetails(null) }}>
                     Cerrar
                   </Button>
                   <Button size="sm" onClick={handleOpenEdit}>

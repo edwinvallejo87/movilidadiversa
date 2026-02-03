@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { z } from 'zod'
+import { requireAuth } from '@/lib/api-auth'
 
 const CreateAdminAppointmentSchema = z.object({
   customerId: z.string().min(1),
-  serviceId: z.string().min(1).optional(),  // Optional - legacy
-  staffId: z.string().min(1).optional(),
+  serviceId: z.string().min(1).optional().nullable(),  // Optional - legacy
+  staffId: z.string().min(1).optional().nullable(),
   resourceId: z.string().min(1).optional(),
   equipmentType: z.enum(['RAMPA', 'ROBOTICA_PLEGABLE']).optional().default('RAMPA'),
   scheduledAt: z.string().datetime(),
@@ -27,6 +28,9 @@ const CreateAdminAppointmentSchema = z.object({
 })
 
 export async function POST(request: NextRequest) {
+  const { error } = await requireAuth()
+  if (error) return error
+
   try {
     const body = await request.json()
     const appointmentData = CreateAdminAppointmentSchema.parse(body)
@@ -66,7 +70,7 @@ export async function POST(request: NextRequest) {
       data: {
         customerId: appointmentData.customerId,
         serviceId: appointmentData.serviceId || null,
-        staffId: appointmentData.staffId,
+        staffId: appointmentData.staffId || null,
         resourceId: appointmentData.resourceId,
         equipmentType,
         scheduledAt: new Date(appointmentData.scheduledAt),
@@ -146,6 +150,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  const { error } = await requireAuth()
+  if (error) return error
+
   try {
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')

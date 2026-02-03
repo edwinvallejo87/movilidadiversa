@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { requireAuth } from '@/lib/api-auth'
 
 const CreateRateSchema = z.object({
   zoneId: z.string().min(1, 'Zone ID is required'),
@@ -13,6 +14,9 @@ const CreateRateSchema = z.object({
 })
 
 export async function GET() {
+  const { error } = await requireAuth()
+  if (error) return error
+
   try {
     const rates = await prisma.rate.findMany({
       orderBy: [
@@ -33,6 +37,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const { error } = await requireAuth()
+  if (error) return error
+
   try {
     const body = await request.json()
     const validatedData = CreateRateSchema.parse(body)

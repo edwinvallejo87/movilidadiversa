@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireAuth } from '@/lib/api-auth'
 
 function getDateRange(timeRange: string) {
   const now = new Date()
@@ -51,6 +52,9 @@ function getStatusFromString(status: string) {
 }
 
 export async function GET(request: NextRequest) {
+  const { error } = await requireAuth()
+  if (error) return error
+
   try {
     const { searchParams } = new URL(request.url)
     const timeRange = searchParams.get('timeRange') || 'last30days'

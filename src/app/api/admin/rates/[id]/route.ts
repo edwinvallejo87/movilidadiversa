@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { requireAuth } from '@/lib/api-auth'
 
 const UpdateRateSchema = z.object({
   price: z.number().min(0, 'Price must be non-negative')
@@ -11,6 +12,9 @@ interface RouteParams {
 }
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
+  const { error } = await requireAuth()
+  if (error) return error
+
   try {
     const { id } = await params
 
@@ -37,6 +41,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 }
 
 export async function PUT(request: NextRequest, { params }: RouteParams) {
+  const { error } = await requireAuth()
+  if (error) return error
+
   try {
     const { id } = await params
     const body = await request.json()
@@ -78,6 +85,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 }
 
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
+  const { error } = await requireAuth()
+  if (error) return error
+
   try {
     const { id } = await params
 

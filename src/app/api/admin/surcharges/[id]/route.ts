@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { requireAuth } from '@/lib/api-auth'
 
 const UpdateSurchargeSchema = z.object({
   code: z.string().min(1, 'Code is required').max(50),
@@ -14,6 +15,9 @@ interface RouteParams {
 }
 
 export async function PUT(request: NextRequest, { params }: RouteParams) {
+  const { error } = await requireAuth()
+  if (error) return error
+
   try {
     const { id } = await params
     const body = await request.json()
@@ -74,6 +78,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 }
 
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
+  const { error } = await requireAuth()
+  if (error) return error
+
   try {
     const { id } = await params
 

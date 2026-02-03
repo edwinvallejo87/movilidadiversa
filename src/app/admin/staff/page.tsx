@@ -127,7 +127,8 @@ export default function StaffPage() {
       const submitData = {
         ...formData,
         type: 'DRIVER',
-        capacity: formData.capacity ? parseInt(formData.capacity) : undefined,
+        email: formData.email?.trim() || null,
+        capacity: formData.capacity ? parseInt(formData.capacity) : null,
         isWheelchairAccessible: formData.equipmentType === 'RAMPA'
       }
 

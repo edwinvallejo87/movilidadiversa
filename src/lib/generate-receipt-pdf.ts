@@ -19,6 +19,10 @@ export interface ReceiptData {
     phone?: string
     email?: string
   }
+  staff?: {
+    name: string
+    phone?: string
+  }
 }
 
 const formatCurrency = (amount: number): string => {
@@ -55,27 +59,36 @@ const getEquipmentLabel = (type: string): string => {
 
 const getTripTypeLabel = (type?: string): string => {
   if (!type) return 'Servicio'
-  return type === 'DOBLE' ? 'Viaje Doble (Ida y Vuelta)' : 'Viaje Sencillo (Solo Ida)'
+  return type === 'DOBLE' ? 'Ida y Vuelta' : 'Solo Ida'
 }
 
-const loadLogoAsBase64 = (): Promise<string> => {
+const loadLogoAsBase64 = (): Promise<{ data: string; width: number; height: number }> => {
   return new Promise((resolve, reject) => {
     const img = new Image()
     img.crossOrigin = 'anonymous'
     img.onload = () => {
+      // Use higher resolution canvas for better quality
+      const scale = 2
       const canvas = document.createElement('canvas')
-      canvas.width = img.width
-      canvas.height = img.height
+      canvas.width = img.width * scale
+      canvas.height = img.height * scale
       const ctx = canvas.getContext('2d')
       if (ctx) {
+        ctx.imageSmoothingEnabled = true
+        ctx.imageSmoothingQuality = 'high'
+        ctx.scale(scale, scale)
         ctx.drawImage(img, 0, 0)
-        resolve(canvas.toDataURL('image/jpeg'))
+        resolve({
+          data: canvas.toDataURL('image/png', 1.0),
+          width: img.width,
+          height: img.height
+        })
       } else {
         reject(new Error('Could not get canvas context'))
       }
     }
     img.onerror = () => reject(new Error('Could not load logo'))
-    img.src = '/logo-movilidad-diversa-601-YNq9g7O3JECXj96E.jpeg'
+    img.src = '/logo.jpeg'
   })
 }
 
@@ -87,218 +100,279 @@ export const generateReceiptPDF = async (data: ReceiptData): Promise<void> => {
   })
 
   const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
   const margin = 20
   const contentWidth = pageWidth - margin * 2
   let y = margin
 
-  // Colors
-  const primaryColor: [number, number, number] = [41, 128, 185]
-  const darkGray: [number, number, number] = [51, 51, 51]
-  const lightGray: [number, number, number] = [128, 128, 128]
-  const lineColor: [number, number, number] = [220, 220, 220]
+  // Colors - Minimal palette
+  const black: [number, number, number] = [0, 0, 0]
+  const darkGray: [number, number, number] = [60, 60, 60]
+  const mediumGray: [number, number, number] = [120, 120, 120]
+  const lightGray: [number, number, number] = [200, 200, 200]
 
-  // Try to load and add logo
+  // ============ HEADER ============
+  // Logo - maintain aspect ratio
+  const logoSize = 30 // Target height in mm
+  let logoWidth = logoSize
+  let textStartX = margin + 38
+
   try {
-    const logoBase64 = await loadLogoAsBase64()
-    doc.addImage(logoBase64, 'JPEG', margin, y, 25, 25)
+    const logo = await loadLogoAsBase64()
+    // Calculate width to maintain aspect ratio
+    const aspectRatio = logo.width / logo.height
+    logoWidth = logoSize * aspectRatio
+    doc.addImage(logo.data, 'PNG', margin, y, logoWidth, logoSize)
+    textStartX = margin + logoWidth + 8
   } catch {
-    // Continue without logo if loading fails
+    // Continue without logo
   }
 
-  // Header - Company name
-  doc.setFontSize(18)
+  // Company name
+  doc.setTextColor(...black)
+  doc.setFontSize(22)
   doc.setFont('helvetica', 'bold')
-  doc.setTextColor(...primaryColor)
-  doc.text('MOVILIDAD DIVERSA', margin + 30, y + 10)
+  doc.text('MOVILIDAD DIVERSA', textStartX, y + 12)
 
   doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
-  doc.setTextColor(...lightGray)
-  doc.text('Transporte Especializado', margin + 30, y + 17)
-
-  y += 35
-
-  // Separator line
-  doc.setDrawColor(...lineColor)
-  doc.setLineWidth(0.5)
-  doc.line(margin, y, pageWidth - margin, y)
-  y += 10
-
-  // Receipt title and number
-  doc.setFontSize(14)
-  doc.setFont('helvetica', 'bold')
   doc.setTextColor(...darkGray)
-  doc.text('RECIBO DE SERVICIO', pageWidth / 2, y, { align: 'center' })
+  doc.text('Transporte Especializado en Movilidad Reducida', textStartX, y + 19)
+
+  y += 38
+
+  // Line separator
+  doc.setDrawColor(...black)
+  doc.setLineWidth(0.8)
+  doc.line(margin, y, pageWidth - margin, y)
   y += 8
 
-  doc.setFontSize(10)
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(...lightGray)
-  const receiptNumber = data.id.substring(0, 8).toUpperCase()
-  doc.text(`No. ${receiptNumber}`, pageWidth / 2, y, { align: 'center' })
-  y += 5
-
-  const emissionDate = new Date().toLocaleDateString('es-CO', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
-  doc.text(`Fecha de emision: ${emissionDate}`, pageWidth / 2, y, { align: 'center' })
-  y += 12
-
-  // Section: Customer Data
-  doc.setFillColor(245, 247, 250)
-  doc.roundedRect(margin, y, contentWidth, 30, 2, 2, 'F')
-  y += 7
-
-  doc.setFontSize(11)
+  // ============ ORDER TITLE ============
+  doc.setFontSize(16)
   doc.setFont('helvetica', 'bold')
-  doc.setTextColor(...primaryColor)
-  doc.text('DATOS DEL CLIENTE', margin + 5, y)
-  y += 7
+  doc.setTextColor(...black)
+  doc.text('ORDEN DE SERVICIO', pageWidth / 2, y, { align: 'center' })
+  y += 10
+
+  // Order number and date
+  const orderNumber = data.id.substring(0, 8).toUpperCase()
+  const emissionDate = new Date().toLocaleDateString('es-CO', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  })
 
   doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(...darkGray)
-  doc.text(`Nombre: ${data.customer.name}`, margin + 5, y)
-  y += 5
+  doc.text(`No. ${orderNumber}`, margin, y)
+  doc.text(`Fecha: ${emissionDate}`, pageWidth - margin, y, { align: 'right' })
+  y += 12
+
+  // ============ CLIENT SECTION ============
+  doc.setFontSize(11)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...black)
+  doc.text('CLIENTE', margin, y)
+  y += 6
+
+  doc.setDrawColor(...lightGray)
+  doc.setLineWidth(0.3)
+  doc.line(margin, y, pageWidth - margin, y)
+  y += 6
+
+  doc.setFontSize(10)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(...darkGray)
+
+  doc.text(`Nombre:`, margin, y)
+  doc.setFont('helvetica', 'bold')
+  doc.text(data.customer.name, margin + 25, y)
 
   if (data.customer.phone) {
-    doc.text(`Telefono: ${data.customer.phone}`, margin + 5, y)
-    y += 5
+    doc.setFont('helvetica', 'normal')
+    doc.text(`Telefono:`, pageWidth / 2, y)
+    doc.text(data.customer.phone, pageWidth / 2 + 25, y)
   }
+  y += 6
 
   if (data.customer.email) {
-    doc.text(`Email: ${data.customer.email}`, margin + 5, y)
+    doc.setFont('helvetica', 'normal')
+    doc.text(`Email:`, margin, y)
+    doc.text(data.customer.email, margin + 25, y)
   }
   y += 12
 
-  // Section: Service Details
-  doc.setFillColor(245, 247, 250)
-  doc.roundedRect(margin, y, contentWidth, 35, 2, 2, 'F')
-  y += 7
-
+  // ============ SERVICE SECTION ============
   doc.setFontSize(11)
   doc.setFont('helvetica', 'bold')
-  doc.setTextColor(...primaryColor)
-  doc.text('DETALLES DEL SERVICIO', margin + 5, y)
-  y += 7
+  doc.setTextColor(...black)
+  doc.text('SERVICIO', margin, y)
+  y += 6
 
-  doc.setFontSize(10)
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(...darkGray)
+  doc.setDrawColor(...lightGray)
+  doc.line(margin, y, pageWidth - margin, y)
+  y += 6
 
   const scheduledDate = formatDate(data.scheduledAt)
   const scheduledTime = formatTime(data.scheduledAt)
 
-  doc.text(`Fecha: ${scheduledDate}`, margin + 5, y)
-  y += 5
-  doc.text(`Hora: ${scheduledTime}`, margin + 5, y)
-  y += 5
-  doc.text(`Equipo: ${getEquipmentLabel(data.equipmentType)}`, margin + 5, y)
-  y += 5
-  doc.text(`Tipo: ${getTripTypeLabel(data.pricingSnapshot?.tripType)}`, margin + 5, y)
-  y += 12
-
-  // Section: Route
-  doc.setFontSize(10)
-  doc.setFont('helvetica', 'normal')
-
-  // Calculate height needed for addresses (wrap long text)
-  const addressMaxWidth = contentWidth - 20
-  const originLines = doc.splitTextToSize(`Origen: ${data.originAddress}`, addressMaxWidth)
-  const destLines = doc.splitTextToSize(`Destino: ${data.destinationAddress}`, addressMaxWidth)
-  const lineHeight = 5
-  const routeContentHeight = (originLines.length + destLines.length) * lineHeight + (data.distanceKm ? 10 : 5) + 14
-
-  doc.setFillColor(245, 247, 250)
-  doc.roundedRect(margin, y, contentWidth, routeContentHeight, 2, 2, 'F')
-  y += 7
-
-  doc.setFontSize(11)
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(...primaryColor)
-  doc.text('RUTA', margin + 5, y)
-  y += 7
-
   doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(...darkGray)
 
-  // Print origin address (multiline if needed)
-  doc.text(originLines, margin + 5, y)
-  y += originLines.length * lineHeight + 2
+  // Row 1
+  doc.text(`Fecha:`, margin, y)
+  doc.text(scheduledDate, margin + 25, y)
+  doc.text(`Hora:`, pageWidth / 2, y)
+  doc.text(scheduledTime, pageWidth / 2 + 25, y)
+  y += 6
 
-  // Print destination address (multiline if needed)
-  doc.text(destLines, margin + 5, y)
-  y += destLines.length * lineHeight
+  // Row 2
+  doc.text(`Tipo de Viaje:`, margin, y)
+  doc.text(getTripTypeLabel(data.pricingSnapshot?.tripType), margin + 35, y)
+  y += 6
+
+  // Row 3
+  doc.text(`Equipo:`, margin, y)
+  doc.text(getEquipmentLabel(data.equipmentType), margin + 25, y)
 
   if (data.distanceKm) {
-    y += 2
-    doc.text(`Distancia: ${data.distanceKm} km`, margin + 5, y)
+    doc.text(`Distancia:`, pageWidth / 2, y)
+    doc.text(`${data.distanceKm} km`, pageWidth / 2 + 25, y)
   }
-  y += 10
+  y += 12
 
-  // Section: Price Breakdown
-  const breakdown = data.pricingSnapshot?.breakdown || []
-  const breakdownHeight = Math.max(40, 25 + breakdown.length * 6 + 12)
-
-  doc.setFillColor(245, 247, 250)
-  doc.roundedRect(margin, y, contentWidth, breakdownHeight, 2, 2, 'F')
-  y += 7
-
+  // ============ ROUTE SECTION ============
   doc.setFontSize(11)
   doc.setFont('helvetica', 'bold')
-  doc.setTextColor(...primaryColor)
-  doc.text('DESGLOSE DE PRECIO', margin + 5, y)
-  y += 8
+  doc.setTextColor(...black)
+  doc.text('RUTA', margin, y)
+  y += 6
 
-  // Breakdown items
+  doc.setDrawColor(...lightGray)
+  doc.line(margin, y, pageWidth - margin, y)
+  y += 6
+
   doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(...darkGray)
+
+  // Origin
+  const addressMaxWidth = contentWidth - 25
+  doc.setFont('helvetica', 'bold')
+  doc.text('Origen:', margin, y)
+  doc.setFont('helvetica', 'normal')
+  const originLines = doc.splitTextToSize(data.originAddress, addressMaxWidth)
+  doc.text(originLines, margin + 25, y)
+  y += originLines.length * 5 + 4
+
+  // Destination
+  doc.setFont('helvetica', 'bold')
+  doc.text('Destino:', margin, y)
+  doc.setFont('helvetica', 'normal')
+  const destLines = doc.splitTextToSize(data.destinationAddress, addressMaxWidth)
+  doc.text(destLines, margin + 25, y)
+  y += destLines.length * 5 + 10
+
+  // ============ PRICING SECTION ============
+  doc.setFontSize(11)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...black)
+  doc.text('DETALLE', margin, y)
+  y += 6
+
+  doc.setDrawColor(...lightGray)
+  doc.line(margin, y, pageWidth - margin, y)
+  y += 6
+
+  doc.setFontSize(10)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(...darkGray)
+
+  const breakdown = data.pricingSnapshot?.breakdown || []
 
   if (breakdown.length > 0) {
     breakdown.forEach((item) => {
       const itemText = item.quantity ? `${item.item} (x${item.quantity})` : item.item
-      doc.text(itemText, margin + 5, y)
-      doc.text(formatCurrency(item.subtotal), pageWidth - margin - 5, y, { align: 'right' })
+      doc.text(itemText, margin, y)
+      doc.text(formatCurrency(item.subtotal), pageWidth - margin, y, { align: 'right' })
       y += 6
     })
   } else {
-    doc.text('Servicio de transporte', margin + 5, y)
-    doc.text(formatCurrency(data.totalAmount), pageWidth - margin - 5, y, { align: 'right' })
+    doc.text('Servicio de transporte especializado', margin, y)
+    doc.text(formatCurrency(data.totalAmount), pageWidth - margin, y, { align: 'right' })
     y += 6
   }
 
-  // Separator line before total
-  y += 2
-  doc.setDrawColor(...lineColor)
-  doc.line(margin + 5, y, pageWidth - margin - 5, y)
-  y += 6
+  y += 4
+  doc.setDrawColor(...black)
+  doc.setLineWidth(0.5)
+  doc.line(margin, y, pageWidth - margin, y)
+  y += 8
 
   // Total
   doc.setFontSize(12)
   doc.setFont('helvetica', 'bold')
-  doc.text('TOTAL', margin + 5, y)
-  doc.setTextColor(...primaryColor)
-  doc.text(formatCurrency(data.totalAmount), pageWidth - margin - 5, y, { align: 'right' })
-  y += 20
+  doc.setTextColor(...black)
+  doc.text('TOTAL:', margin, y)
+  doc.text(formatCurrency(data.totalAmount), pageWidth - margin, y, { align: 'right' })
 
-  // Footer message
-  doc.setFontSize(10)
-  doc.setFont('helvetica', 'italic')
-  doc.setTextColor(...lightGray)
-  doc.text('Gracias por confiar en nosotros', pageWidth / 2, y, { align: 'center' })
-  y += 5
+  // ============ FOOTER ============
+  const footerStartY = pageHeight - 40
+
+  // Footer separator
+  doc.setDrawColor(...black)
+  doc.setLineWidth(0.8)
+  doc.line(margin, footerStartY, pageWidth - margin, footerStartY)
+
+  // Footer content - 3 columns
+  const colWidth = contentWidth / 3
+  const col1X = margin
+  const col2X = margin + colWidth
+  const col3X = margin + colWidth * 2
+
+  let footerY = footerStartY + 6
+
   doc.setFontSize(8)
-  doc.text('Este documento es un comprobante de su reserva de servicio', pageWidth / 2, y, {
-    align: 'center',
-  })
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...black)
+
+  // Column 1 - Address
+  doc.text('Direccion', col1X, footerY)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(...darkGray)
+  doc.text('Calle 8a #56-21', col1X, footerY + 4)
+  doc.text('Guayabal - Medellin', col1X, footerY + 8)
+
+  // Column 2 - Hours
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...black)
+  doc.text('Horarios', col2X, footerY)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(...darkGray)
+  doc.text('Lunes - Domingo', col2X, footerY + 4)
+  doc.text('6:00 am - 10:00 pm', col2X, footerY + 8)
+
+  // Column 3 - Contact
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...black)
+  doc.text('Contacto', col3X, footerY)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(...darkGray)
+  doc.text('WhatsApp: 314 829 8976', col3X, footerY + 4)
+  doc.text('movilidadiversa@gmail.com', col3X, footerY + 8)
+
+  // Thank you message
+  footerY += 16
+  doc.setFontSize(9)
+  doc.setFont('helvetica', 'italic')
+  doc.setTextColor(...mediumGray)
+  doc.text('Gracias por confiar en nosotros', pageWidth / 2, footerY, { align: 'center' })
 
   // Generate filename
   const dateStr = new Date(data.scheduledAt).toISOString().split('T')[0]
-  const filename = `recibo-${receiptNumber}-${dateStr}.pdf`
+  const filename = `orden-servicio-${orderNumber}-${dateStr}.pdf`
 
   // Download the PDF
   doc.save(filename)

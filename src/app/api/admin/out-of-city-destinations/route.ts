@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requireAuth } from '@/lib/api-auth'
 
 export async function GET() {
+  const { error } = await requireAuth()
+  if (error) return error
+
   try {
     const destinations = await prisma.outOfCityDestination.findMany({
       orderBy: [
@@ -21,6 +25,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const { error } = await requireAuth()
+  if (error) return error
+
   try {
     const body = await request.json()
     const { name, tripType, equipmentType, originType, price } = body

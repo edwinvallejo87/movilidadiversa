@@ -25,15 +25,45 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, email, phone, address, medicalNotes } = body
+    const {
+      name,
+      email,
+      phone,
+      document,
+      age,
+      weight,
+      wheelchairType,
+      address,
+      medicalNotes,
+      medicalNeeds,
+      mobilityAid,
+      emergencyContact,
+      emergencyPhone,
+      notes,
+      isActive = true
+    } = body
+
+    if (!name || !phone) {
+      return NextResponse.json(
+        { error: 'Nombre y teléfono son requeridos' },
+        { status: 400 }
+      )
+    }
 
     const customer = await prisma.customer.create({
       data: {
         name,
-        email,
+        email: email || null,
         phone,
-        defaultAddress: address,
-        medicalNotes
+        document: document || null,
+        age: age ? parseInt(age) : null,
+        weight: weight ? parseFloat(weight) : null,
+        wheelchairType: wheelchairType || null,
+        defaultAddress: address || null,
+        medicalNotes: medicalNotes || medicalNeeds || null,
+        mobilityNeeds: mobilityAid && mobilityAid !== 'NONE' ? JSON.stringify([mobilityAid]) : null,
+        emergencyContact: emergencyContact || null,
+        isActive
       }
     })
 

@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { z } from 'zod'
+import { requireAuth } from '@/lib/api-auth'
 
 const UpdateCustomerSchema = z.object({
   name: z.string().min(2).optional(),
-  email: z.string().email().optional(),
-  phone: z.string().min(10).optional(),
+  email: z.string().email().optional().nullable(),
+  phone: z.string().optional(),
   document: z.string().optional(),
+  age: z.union([z.string(), z.number()]).optional().transform(val => val ? parseInt(String(val)) : null),
+  weight: z.union([z.string(), z.number()]).optional().transform(val => val ? parseFloat(String(val)) : null),
+  wheelchairType: z.string().optional(),
   address: z.string().optional(),
   medicalNeeds: z.string().optional(),
   mobilityAid: z.enum(['WHEELCHAIR', 'WALKER', 'CRUTCHES', 'NONE']).optional(),
@@ -22,6 +26,9 @@ export async function GET(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
+  const { error } = await requireAuth()
+  if (error) return error
+
   try {
     const resolvedParams = await context.params
     const customerId = resolvedParams.id
@@ -67,6 +74,9 @@ export async function PUT(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
+  const { error } = await requireAuth()
+  if (error) return error
+
   try {
     const resolvedParams = await context.params
     const customerId = resolvedParams.id
@@ -102,9 +112,40 @@ export async function PUT(
       }
     }
 
+    // Map form fields to database fields
+    const updateData: Record<string, unknown> = {}
+
+    // Direct fields
+    if (customerData.name !== undefined) updateData.name = customerData.name
+    if (customerData.phone !== undefined) updateData.phone = customerData.phone
+    if (customerData.document !== undefined) updateData.document = customerData.document || null
+    if (customerData.age !== undefined) updateData.age = customerData.age
+    if (customerData.weight !== undefined) updateData.weight = customerData.weight
+    if (customerData.wheelchairType !== undefined) updateData.wheelchairType = customerData.wheelchairType || null
+    if (customerData.emergencyContact !== undefined) updateData.emergencyContact = customerData.emergencyContact || null
+    if (customerData.isActive !== undefined) updateData.isActive = customerData.isActive
+
+    // Email - handle empty string as null
+    if (customerData.email !== undefined) {
+      updateData.email = customerData.email || null
+    }
+
+    // Mapped fields (form name -> db name)
+    if (customerData.address !== undefined) {
+      updateData.defaultAddress = customerData.address || null
+    }
+    if (customerData.medicalNeeds !== undefined) {
+      updateData.medicalNotes = customerData.medicalNeeds || null
+    }
+    if (customerData.mobilityAid !== undefined) {
+      updateData.mobilityNeeds = customerData.mobilityAid && customerData.mobilityAid !== 'NONE'
+        ? JSON.stringify([customerData.mobilityAid])
+        : null
+    }
+
     const updatedCustomer = await db.customer.update({
       where: { id: customerId },
-      data: customerData,
+      data: updateData,
       include: {
         _count: {
           select: {
@@ -137,6 +178,9 @@ export async function DELETE(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
+  const { error } = await requireAuth()
+  if (error) return error
+
   try {
     const resolvedParams = await context.params
     const customerId = resolvedParams.id

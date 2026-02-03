@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requireAuth } from '@/lib/api-auth'
 
 export async function GET() {
+  const { error } = await requireAuth()
+  if (error) return error
+
   try {
     // Get today's date range in Colombia timezone (UTC-5)
     const now = new Date()

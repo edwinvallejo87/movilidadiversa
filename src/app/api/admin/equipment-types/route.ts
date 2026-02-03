@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { requireAuth } from '@/lib/api-auth'
 
 const CreateEquipmentTypeSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
@@ -10,6 +11,9 @@ const CreateEquipmentTypeSchema = z.object({
 })
 
 export async function GET() {
+  const { error } = await requireAuth()
+  if (error) return error
+
   try {
     const equipmentTypes = await prisma.equipmentType.findMany({
       orderBy: { name: 'asc' }
@@ -26,6 +30,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const { error } = await requireAuth()
+  if (error) return error
+
   try {
     const body = await request.json()
     const validatedData = CreateEquipmentTypeSchema.parse(body)

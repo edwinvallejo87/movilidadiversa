@@ -258,6 +258,8 @@ export async function POST(request: NextRequest) {
 
         breakdown.push({
           item: service.name,
+          code: service.code,
+          type: 'additional_service',
           quantity: quantity > 1 ? quantity : undefined,
           unitPrice: service.price,
           subtotal: subtotal

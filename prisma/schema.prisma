@@ -228,18 +228,23 @@ model Customer {
   email              String?  @unique
   phone              String
   document           String?
-  
+
+  // Physical info for service
+  age                Int?
+  weight             Float?            // Peso aproximado en kg
+  wheelchairType     String?           // Tipo de silla: propia, alquilada, ninguna, etc.
+
   // Additional info
   emergencyContact   String?
   medicalNotes       String?
   mobilityNeeds      String?  // JSON: ["wheelchair", "walker"]
   preferredLanguage  String   @default("es")
-  
+
   // Default address
   defaultAddress     String?
   defaultLat         Float?
   defaultLng         Float?
-  
+
   isActive           Boolean  @default(true)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
@@ -339,4 +344,34 @@ model Setting {
   updatedAt DateTime @updatedAt
 
   @@map("settings")
+}
+
+// ===== AUTHENTICATION =====
+
+// Admin users
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  name          String
+  role          String    @default("ADMIN") // ADMIN, SUPER_ADMIN
+  isActive      Boolean   @default(true)
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  sessions      Session[]
+
+  @@map("users")
+}
+
+// User sessions
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
 }

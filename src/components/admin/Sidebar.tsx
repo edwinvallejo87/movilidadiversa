@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard,
   Calendar,
@@ -18,8 +18,17 @@ import {
   X,
   Package,
   Wrench,
-  MapPin
+  MapPin,
+  LogOut
 } from 'lucide-react'
+import { toast } from 'sonner'
+
+interface SidebarProps {
+  user?: {
+    name: string
+    email: string
+  }
+}
 
 const navItems = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
@@ -33,10 +42,22 @@ const navItems = [
   { href: '/admin/reports', label: 'Reportes', icon: BarChart3 },
 ]
 
-export function Sidebar() {
+export function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname()
+  const router = useRouter()
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' })
+      toast.success('Sesión cerrada')
+      router.push('/login')
+      router.refresh()
+    } catch {
+      toast.error('Error al cerrar sesión')
+    }
+  }
 
   const isActive = (href: string) => {
     if (href === '/admin') {
@@ -77,7 +98,7 @@ export function Sidebar() {
           {!collapsed ? (
             <Link href="/admin" className="flex items-center gap-2">
               <Image
-                src="/logo-movilidad-diversa-601-YNq9g7O3JECXj96E.jpeg"
+                src="/logo.jpeg"
                 alt="Movilidad Diversa"
                 width={32}
                 height={32}
@@ -88,7 +109,7 @@ export function Sidebar() {
           ) : (
             <Link href="/admin">
               <Image
-                src="/logo-movilidad-diversa-601-YNq9g7O3JECXj96E.jpeg"
+                src="/logo.jpeg"
                 alt="Movilidad Diversa"
                 width={28}
                 height={28}
@@ -150,7 +171,7 @@ export function Sidebar() {
         </nav>
 
         {/* Footer */}
-        <div className="absolute bottom-0 left-0 right-0 p-2 border-t border-gray-800/50">
+        <div className="absolute bottom-0 left-0 right-0 p-2 border-t border-gray-800/50 space-y-1">
           <Link
             href="/admin/settings"
             className={`
@@ -166,6 +187,23 @@ export function Sidebar() {
               <span className="text-xs font-medium">Config</span>
             )}
           </Link>
+
+          {user && (
+            <div className={`flex items-center ${collapsed ? 'justify-center' : 'justify-between'} px-3 py-2`}>
+              {!collapsed && (
+                <span className="text-[10px] text-gray-500 truncate max-w-[100px]">
+                  {user.name}
+                </span>
+              )}
+              <button
+                onClick={handleLogout}
+                className="p-1.5 text-gray-500 hover:text-gray-300 hover:bg-white/5 rounded transition-colors"
+                title="Cerrar sesión"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
       </aside>
     </>

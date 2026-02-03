@@ -1,3 +1,6 @@
 export { Sidebar } from './Sidebar'
 export { PageHeader } from './PageHeader'
 export { StatCard } from './StatCard'
+export { CreateCustomerDialog } from './CreateCustomerDialog'
+export { CustomerSearch } from './CustomerSearch'
+export { StaffSearch } from './StaffSearch'

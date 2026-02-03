@@ -15,6 +15,7 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed-tariffs.ts",
+    "db:seed:admin": "tsx prisma/seed-admin.ts",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
@@ -31,6 +32,7 @@
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-toast": "^1.2.15",
     "@react-google-maps/api": "^2.20.8",
+    "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
@@ -53,6 +55,7 @@
     "seed": "tsx prisma/seed-tariffs.ts"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/jest": "^30.0.0",
     "@types/jspdf": "^1.3.3",
     "@types/node": "^20.19.26",
