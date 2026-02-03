@@ -7,7 +7,9 @@ const UpdateSurchargeSchema = z.object({
   code: z.string().min(1, 'Code is required').max(50),
   name: z.string().min(1, 'Name is required').max(100),
   price: z.number().min(0, 'Price must be non-negative'),
-  description: z.string().max(500).nullable().optional()
+  description: z.string().max(500).nullable().optional(),
+  startHour: z.number().min(0).max(23).nullable().optional(),
+  endHour: z.number().min(0).max(23).nullable().optional()
 })
 
 interface RouteParams {
@@ -55,7 +57,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         code: validatedData.code,
         name: validatedData.name,
         price: validatedData.price,
-        description: validatedData.description || null
+        description: validatedData.description || null,
+        startHour: validatedData.startHour ?? null,
+        endHour: validatedData.endHour ?? null
       }
     })
 

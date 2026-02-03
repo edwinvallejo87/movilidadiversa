@@ -69,6 +69,7 @@ interface QuoteRequest {
     code: string
     quantity?: number
   }>
+  scheduledAt?: string // ISO date string
   isNightSchedule?: boolean
   isHolidayOrSunday?: boolean
 }
@@ -95,9 +96,34 @@ export async function POST(request: NextRequest) {
       outOfCityDestination,
       extraKm,
       additionalServices = [],
-      isNightSchedule = false,
-      isHolidayOrSunday = false
+      scheduledAt,
+      isNightSchedule: isNightScheduleParam = false,
+      isHolidayOrSunday: isHolidayOrSundayParam = false
     } = body
+
+    // Calculate night schedule and holiday from scheduledAt if provided
+    let isNightSchedule = isNightScheduleParam
+    let isHolidayOrSunday = isHolidayOrSundayParam
+
+    if (scheduledAt) {
+      const scheduledDate = new Date(scheduledAt)
+      const hour = scheduledDate.getHours()
+
+      // Get night surcharge config from database
+      const nightSurcharge = await prisma.surcharge.findUnique({
+        where: { code: 'NOCTURNO' }
+      })
+
+      if (nightSurcharge?.startHour !== null && nightSurcharge?.endHour !== null) {
+        const startHour = nightSurcharge.startHour ?? 18
+        const endHour = nightSurcharge.endHour ?? 6
+        // Night is from startHour to endHour (crossing midnight)
+        isNightSchedule = hour >= startHour || hour < endHour
+      }
+
+      // Check if Sunday
+      isHolidayOrSunday = scheduledDate.getDay() === 0
+    }
 
     // Validate required fields
     if (!zoneSlug || !tripType || !equipmentType) {

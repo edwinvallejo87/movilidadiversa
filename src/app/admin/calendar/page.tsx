@@ -471,26 +471,13 @@ export default function CalendarPage() {
     // Clear previous error when starting new calculation
     setRateNotFoundError(null)
 
-    // Auto-detect night schedule and holidays
-    const isNightSchedule = formData.scheduledAt ? (() => {
-      const date = new Date(formData.scheduledAt)
-      const hour = date.getHours()
-      return hour >= 18 || hour < 6
-    })() : formData.isNightSchedule
-
-    const isHolidayOrSunday = formData.scheduledAt ? (() => {
-      const date = new Date(formData.scheduledAt)
-      return date.getDay() === 0 // Sunday
-    })() : formData.isHolidayOrSunday
-
     try {
       const quoteRequest: any = {
         zoneSlug: formData.zoneSlug,
         tripType: formData.tripType,
         equipmentType: formData.equipmentType,
         additionalServices: formData.additionalServices,
-        isNightSchedule,
-        isHolidayOrSunday
+        scheduledAt: formData.scheduledAt || undefined // API will calculate night/holiday
       }
 
       // Add optional fields only if they have valid values
@@ -518,9 +505,7 @@ export default function CalendarPage() {
         setCurrentQuote(quote)
         setFormData(prev => ({
           ...prev,
-          estimatedAmount: quote.totalPrice,
-          isNightSchedule,
-          isHolidayOrSunday
+          estimatedAmount: quote.totalPrice
         }))
         setShowQuoteBreakdown(true)
         setRateNotFoundError(null)

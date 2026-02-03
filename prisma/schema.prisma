@@ -66,6 +66,8 @@ model Surcharge {
   name        String
   price       Int
   description String?
+  startHour   Int?    // Hora de inicio (0-23), ej: 18 para 6PM
+  endHour     Int?    // Hora de fin (0-23), ej: 6 para 6AM
 
   @@map("surcharges")
 }

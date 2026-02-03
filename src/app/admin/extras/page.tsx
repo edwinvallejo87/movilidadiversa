@@ -18,6 +18,8 @@ interface Surcharge {
   name: string
   price: number
   description: string | null
+  startHour: number | null
+  endHour: number | null
 }
 
 interface AdditionalService {
@@ -42,7 +44,9 @@ export default function ExtrasPage() {
     code: '',
     name: '',
     price: '',
-    description: ''
+    description: '',
+    startHour: '',
+    endHour: ''
   })
 
   // Service form
@@ -85,7 +89,7 @@ export default function ExtrasPage() {
 
   // Surcharge handlers
   const resetSurchargeForm = () => {
-    setSurchargeForm({ code: '', name: '', price: '', description: '' })
+    setSurchargeForm({ code: '', name: '', price: '', description: '', startHour: '', endHour: '' })
   }
 
   const handleSurchargeSubmit = async (e: React.FormEvent) => {
@@ -99,8 +103,12 @@ export default function ExtrasPage() {
         method: editingSurcharge ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...surchargeForm,
-          price: parseInt(surchargeForm.price)
+          code: surchargeForm.code,
+          name: surchargeForm.name,
+          price: parseInt(surchargeForm.price),
+          description: surchargeForm.description || null,
+          startHour: surchargeForm.startHour ? parseInt(surchargeForm.startHour) : null,
+          endHour: surchargeForm.endHour ? parseInt(surchargeForm.endHour) : null
         })
       })
 
@@ -124,7 +132,9 @@ export default function ExtrasPage() {
       code: surcharge.code,
       name: surcharge.name,
       price: surcharge.price.toString(),
-      description: surcharge.description || ''
+      description: surcharge.description || '',
+      startHour: surcharge.startHour?.toString() || '',
+      endHour: surcharge.endHour?.toString() || ''
     })
     setIsSurchargeDialogOpen(true)
   }
@@ -317,6 +327,32 @@ export default function ExtrasPage() {
                       rows={2}
                     />
                   </div>
+                  {/* Campos de horario (solo para recargos basados en hora como NOCTURNO) */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Hora Inicio (0-23)</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="23"
+                        value={surchargeForm.startHour}
+                        onChange={(e) => setSurchargeForm({...surchargeForm, startHour: e.target.value})}
+                        placeholder="Ej: 18 para 6PM"
+                      />
+                    </div>
+                    <div>
+                      <Label>Hora Fin (0-23)</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="23"
+                        value={surchargeForm.endHour}
+                        onChange={(e) => setSurchargeForm({...surchargeForm, endHour: e.target.value})}
+                        placeholder="Ej: 6 para 6AM"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-gray-500">Los campos de hora solo aplican para recargos como NOCTURNO. Dejar vacios si no aplica.</p>
                   <div className="flex justify-end gap-2 pt-2">
                     <Button type="button" variant="outline" size="sm" onClick={() => setIsSurchargeDialogOpen(false)}>
                       Cancelar
