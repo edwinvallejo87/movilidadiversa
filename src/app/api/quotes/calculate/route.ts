@@ -75,6 +75,8 @@ interface QuoteRequest {
 
 interface BreakdownItem {
   item: string
+  code?: string
+  type?: string
   quantity?: number
   unitPrice: number
   subtotal: number
