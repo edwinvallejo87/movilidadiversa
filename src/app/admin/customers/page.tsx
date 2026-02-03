@@ -24,7 +24,7 @@ interface Customer {
   age?: number
   weight?: number
   wheelchairType?: string
-  address?: string
+  defaultAddress?: string
   medicalNeeds?: string
   mobilityAid: 'WHEELCHAIR' | 'WALKER' | 'CRUTCHES' | 'NONE'
   requiresAssistant: boolean
@@ -191,7 +191,7 @@ export default function CustomersPage() {
       age: customer.age?.toString() || '',
       weight: customer.weight?.toString() || '',
       wheelchairType: customer.wheelchairType || '',
-      address: customer.address || '',
+      address: customer.defaultAddress || '',
       medicalNeeds: customer.medicalNeeds || '',
       mobilityAid: customer.mobilityAid,
       requiresAssistant: customer.requiresAssistant,
@@ -528,9 +528,9 @@ export default function CustomersPage() {
                     </div>
                   </td>
                   <td className="px-3 py-2">
-                    {customer.address ? (
-                      <div className="text-gray-600 max-w-[200px] truncate" title={customer.address}>
-                        {customer.address}
+                    {customer.defaultAddress ? (
+                      <div className="text-gray-600 max-w-[200px] truncate" title={customer.defaultAddress}>
+                        {customer.defaultAddress}
                       </div>
                     ) : (
                       <span className="text-gray-400">-</span>
