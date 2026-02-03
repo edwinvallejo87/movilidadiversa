@@ -1235,8 +1235,7 @@ export default function CalendarPage() {
                       setFormData({
                         ...formData,
                         customerId: value,
-                        notes: autoNotes,
-                        originAddress: selectedCustomer?.defaultAddress || formData.originAddress
+                        notes: autoNotes
                       })
                     }}
                     placeholder="Buscar por nombre, cedula o telefono..."
