@@ -3,6 +3,22 @@ import { prisma } from '@/lib/prisma'
 
 export async function GET(request: NextRequest) {
   try {
+    // Auto-complete past appointments that weren't completed or cancelled
+    const now = new Date()
+    await prisma.appointment.updateMany({
+      where: {
+        scheduledAt: {
+          lt: now
+        },
+        status: {
+          in: ['PENDING', 'SCHEDULED', 'CONFIRMED', 'IN_PROGRESS']
+        }
+      },
+      data: {
+        status: 'COMPLETED'
+      }
+    })
+
     const { searchParams } = new URL(request.url)
     const include = searchParams.get('include')
     const startDate = searchParams.get('startDate')
