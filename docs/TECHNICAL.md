@@ -260,20 +260,89 @@ NEXT_PUBLIC_GOOGLE_MAPS_API_KEY="AIza..."
 AUTH_SECRET="..."
 ```
 
-## Configuración de Google Maps
+## Google Maps Platform
 
-APIs requeridas:
-- Maps JavaScript API
-- Places API
-- Directions API
-- Geocoding API
+### APIs Utilizadas
 
-Restricciones de dominio:
-```
-http://localhost:3000/*
-http://localhost:3001/*
-https://tu-dominio.vercel.app/*
-```
+| API | Uso en la Aplicación |
+|-----|---------------------|
+| **Maps JavaScript API** | Mostrar el mapa interactivo en el formulario de citas |
+| **Places API** | Autocompletado de direcciones y obtención de coordenadas |
+| **Directions API** | Calcular rutas y distancias entre origen y destino |
+| **Geocoding API** | Respaldo para conversión de direcciones a coordenadas |
+
+### Crédito Gratuito Mensual
+
+Google ofrece **$200 USD gratis cada mes** para Google Maps Platform. Este crédito se renueva automáticamente y es suficiente para la mayoría de aplicaciones pequeñas/medianas.
+
+**No hay fecha de expiración** del tier gratuito - es permanente mientras Google mantenga esta política (vigente desde 2018).
+
+### Costos por API (después del crédito de $200)
+
+| API | Costo por 1,000 solicitudes | Solicitudes gratis/mes (~$200) |
+|-----|----------------------------|-------------------------------|
+| Maps JavaScript API | $7.00 | ~28,500 cargas de mapa |
+| Places Autocomplete | $2.83 | ~70,600 solicitudes |
+| Places Details | $17.00 | ~11,700 solicitudes |
+| Directions API | $5.00 | ~40,000 rutas |
+| Geocoding API | $5.00 | ~40,000 geocodificaciones |
+
+### Uso Estimado por Cita
+
+Cada cita creada consume aproximadamente:
+- 1 carga de mapa (~$0.00025)
+- 2-4 solicitudes de Autocomplete (~$0.01)
+- 2 solicitudes de Places Details (~$0.03)
+- 1 solicitud de Directions (~$0.005)
+
+**Costo estimado por cita: ~$0.05 USD**
+
+Con el crédito de $200/mes, puedes crear aproximadamente **4,000 citas mensuales gratis**.
+
+### Configuración Requerida
+
+1. **Crear proyecto en Google Cloud Console**:
+   https://console.cloud.google.com/
+
+2. **Habilitar las APIs**:
+   - https://console.cloud.google.com/apis/library/maps-backend.googleapis.com
+   - https://console.cloud.google.com/apis/library/places-backend.googleapis.com
+   - https://console.cloud.google.com/apis/library/directions-backend.googleapis.com
+   - https://console.cloud.google.com/apis/library/geocoding-backend.googleapis.com
+
+3. **Crear API Key**:
+   https://console.cloud.google.com/apis/credentials
+
+4. **Configurar restricciones de dominio**:
+   ```
+   http://localhost:3000/*
+   http://localhost:3001/*
+   https://movilidadiversa.vercel.app/*
+   ```
+
+5. **Habilitar facturación** (requerido aunque uses solo el tier gratis):
+   https://console.cloud.google.com/billing
+
+### Monitoreo de Uso
+
+Puedes monitorear el uso y costos en:
+- **Dashboard de APIs**: https://console.cloud.google.com/apis/dashboard
+- **Reportes de facturación**: https://console.cloud.google.com/billing
+
+### Alertas de Presupuesto
+
+Recomendamos configurar alertas para evitar cargos inesperados:
+
+1. Ve a: https://console.cloud.google.com/billing/budgets
+2. Crea un presupuesto de $200 USD
+3. Configura alertas al 50%, 80% y 100%
+
+### Límites de Quota
+
+Si necesitas limitar el uso para no exceder el tier gratuito:
+
+1. Ve a: https://console.cloud.google.com/apis/api/maps-backend.googleapis.com/quotas
+2. Configura límites diarios por API
 
 ## Comandos de Desarrollo
 
