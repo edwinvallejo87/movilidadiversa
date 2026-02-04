@@ -7,8 +7,10 @@ export async function GET() {
   if (error) return error
 
   try {
-    // Auto-complete past appointments that weren't completed or cancelled
+    // Get today's date range in Colombia timezone (UTC-5)
     const now = new Date()
+
+    // Auto-complete past appointments that weren't completed or cancelled
     await prisma.appointment.updateMany({
       where: {
         scheduledAt: {
@@ -22,9 +24,6 @@ export async function GET() {
         status: 'COMPLETED'
       }
     })
-
-    // Get today's date range in Colombia timezone (UTC-5)
-    const now = new Date()
     const colombiaOffset = -5 * 60 // UTC-5 in minutes
     const localOffset = now.getTimezoneOffset()
     const colombiaTime = new Date(now.getTime() + (localOffset - colombiaOffset) * 60 * 1000)
