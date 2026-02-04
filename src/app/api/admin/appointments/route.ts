@@ -10,6 +10,7 @@ const CreateAdminAppointmentSchema = z.object({
   resourceId: z.string().min(1).optional(),
   equipmentType: z.enum(['RAMPA', 'ROBOTICA_PLEGABLE']).optional().default('RAMPA'),
   scheduledAt: z.string().datetime(),
+  returnAt: z.string().datetime().optional().nullable(),  // Return time for round trips
   originAddress: z.string().optional(),
   destinationAddress: z.string().optional(),
   originLat: z.number().optional(),
@@ -74,6 +75,7 @@ export async function POST(request: NextRequest) {
         resourceId: appointmentData.resourceId,
         equipmentType,
         scheduledAt: new Date(appointmentData.scheduledAt),
+        returnAt: appointmentData.returnAt ? new Date(appointmentData.returnAt) : null,
         originAddress: appointmentData.originAddress || 'Sin dirección',
         destinationAddress: appointmentData.destinationAddress || 'Sin dirección',
         originLat: appointmentData.originLat || 0,
@@ -83,7 +85,7 @@ export async function POST(request: NextRequest) {
         distanceKm: appointmentData.distanceKm || 0,
         estimatedDuration: 60,  // Default duration
         notes: appointmentData.notes,
-        status: 'SCHEDULED',
+        status: 'CONFIRMED',
         totalAmount: appointmentData.estimatedAmount || 0,
         pricingSnapshot: JSON.stringify({
           method: appointmentData.pricingBreakdown ? 'quote_calculation' : 'admin_manual',

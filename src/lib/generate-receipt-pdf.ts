@@ -3,6 +3,7 @@ import jsPDF from 'jspdf'
 export interface ReceiptData {
   id: string
   scheduledAt: Date | string
+  returnAt?: Date | string | null  // Return pickup time for round trips
   originAddress: string
   destinationAddress: string
   distanceKm?: number
@@ -221,14 +222,30 @@ export const generateReceiptPDF = async (data: ReceiptData): Promise<void> => {
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(...darkGray)
 
-  // Row 1
+  // Row 1 - Pickup time
   doc.text(`Fecha:`, margin, y)
   doc.text(scheduledDate, margin + 25, y)
-  doc.text(`Hora:`, pageWidth / 2, y)
-  doc.text(scheduledTime, pageWidth / 2 + 25, y)
+  const pickupLabel = data.returnAt ? 'Hora Recogida:' : 'Hora:'
+  doc.text(pickupLabel, pageWidth / 2, y)
+  doc.text(scheduledTime, pageWidth / 2 + 30, y)
   y += 6
 
-  // Row 2
+  // Row 2 - Return time (only for round trips)
+  if (data.returnAt) {
+    const returnDate = formatDate(data.returnAt)
+    const returnTime = formatTime(data.returnAt)
+    const isSameDay = new Date(data.scheduledAt).toDateString() === new Date(data.returnAt).toDateString()
+
+    doc.text(`Hora Regreso:`, margin, y)
+    if (isSameDay) {
+      doc.text(returnTime, margin + 30, y)
+    } else {
+      doc.text(`${returnDate} - ${returnTime}`, margin + 30, y)
+    }
+    y += 6
+  }
+
+  // Row 3
   doc.text(`Tipo de Viaje:`, margin, y)
   doc.text(getTripTypeLabel(data.pricingSnapshot?.tripType), margin + 35, y)
   y += 6

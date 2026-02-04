@@ -60,10 +60,11 @@ export default function AdminDashboard() {
 
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { label: string; color: string }> = {
+      'PENDING': { label: 'Programada', color: 'bg-blue-100 text-blue-700' },
       'SCHEDULED': { label: 'Programada', color: 'bg-blue-100 text-blue-700' },
-      'CONFIRMED': { label: 'Confirmada', color: 'bg-green-100 text-green-700' },
+      'CONFIRMED': { label: 'Programada', color: 'bg-blue-100 text-blue-700' },
       'IN_PROGRESS': { label: 'En curso', color: 'bg-yellow-100 text-yellow-700' },
-      'COMPLETED': { label: 'Completada', color: 'bg-gray-100 text-gray-700' },
+      'COMPLETED': { label: 'Completada', color: 'bg-green-100 text-green-700' },
       'CANCELLED': { label: 'Cancelada', color: 'bg-red-100 text-red-700' }
     }
     return statusMap[status] || { label: status, color: 'bg-gray-100 text-gray-700' }

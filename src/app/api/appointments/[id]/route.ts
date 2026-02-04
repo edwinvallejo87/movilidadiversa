@@ -18,6 +18,7 @@ const FullUpdateAppointmentSchema = z.object({
   customerId: z.string().optional(),
   staffId: z.string().nullable().optional(),
   scheduledAt: z.string().optional(),
+  returnAt: z.string().nullable().optional(),  // Return time for round trips
   originAddress: z.string().optional(),
   destinationAddress: z.string().optional(),
   notes: z.string().optional().nullable(),
@@ -171,6 +172,7 @@ export async function PUT(
     if (updateData.customerId) dataToUpdate.customerId = updateData.customerId
     if (updateData.staffId !== undefined) dataToUpdate.staffId = updateData.staffId || null
     if (updateData.scheduledAt) dataToUpdate.scheduledAt = new Date(updateData.scheduledAt)
+    if (updateData.returnAt !== undefined) dataToUpdate.returnAt = updateData.returnAt ? new Date(updateData.returnAt) : null
     if (updateData.originAddress) dataToUpdate.originAddress = updateData.originAddress
     if (updateData.destinationAddress) dataToUpdate.destinationAddress = updateData.destinationAddress
     if (updateData.notes !== undefined) dataToUpdate.notes = updateData.notes
@@ -236,27 +238,17 @@ export async function DELETE(
       )
     }
 
-    // En lugar de eliminar, cambiar estado a CANCELLED
-    const cancelledAppointment = await db.appointment.update({
-      where: { id },
-      data: {
-        status: 'CANCELLED',
-        updatedAt: new Date()
-      },
-      include: {
-        service: true,
-        customer: true,
-        staff: true,
-        resource: true
-      }
+    // Eliminar la cita permanentemente
+    await db.appointment.delete({
+      where: { id }
     })
 
-    return NextResponse.json(cancelledAppointment)
+    return NextResponse.json({ success: true, message: 'Appointment deleted' })
 
   } catch (error) {
-    console.error('Error cancelling appointment:', error)
+    console.error('Error deleting appointment:', error)
     return NextResponse.json(
-      { error: 'Error cancelling appointment' },
+      { error: 'Error deleting appointment' },
       { status: 500 }
     )
   }

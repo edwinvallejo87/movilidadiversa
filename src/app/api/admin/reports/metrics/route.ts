@@ -42,8 +42,10 @@ function getDateRange(timeRange: string) {
 
 function getStatusFromString(status: string) {
   const statusMap: { [key: string]: string } = {
+    'PENDING': 'pending',
     'SCHEDULED': 'pending',
-    'IN_PROGRESS': 'pending', 
+    'CONFIRMED': 'pending',  // All active/programmed appointments
+    'IN_PROGRESS': 'pending',
     'COMPLETED': 'completed',
     'CANCELLED': 'cancelled',
     'NO_SHOW': 'cancelled'

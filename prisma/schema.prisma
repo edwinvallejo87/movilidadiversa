@@ -308,6 +308,7 @@ model Appointment {
 
   // Scheduling
   scheduledAt           DateTime
+  returnAt              DateTime?         // Return pickup time for round trips (DOBLE)
   estimatedDuration     Int
   actualStartTime       DateTime?
   actualEndTime         DateTime?

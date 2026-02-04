@@ -188,12 +188,12 @@ export default function ReportsPage() {
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-600">Pendientes</span>
+                  <span className="text-xs text-gray-600">Programadas</span>
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-medium text-gray-900">{metrics.pendingAppointments}</span>
                     <div className="w-20 h-1.5 bg-gray-100 rounded">
                       <div
-                        className="h-1.5 bg-yellow-500 rounded"
+                        className="h-1.5 bg-blue-500 rounded"
                         style={{
                           width: `${metrics.totalAppointments > 0
                             ? (metrics.pendingAppointments / metrics.totalAppointments) * 100

@@ -60,6 +60,7 @@ export default function CalendarPage() {
     customerId: '',
     staffId: '',
     scheduledAt: '',
+    returnAt: '',  // Return pickup time for round trips
     notes: '',
     estimatedAmount: 0,
 
@@ -333,16 +334,21 @@ export default function CalendarPage() {
 
   const eventStyleGetter = (event: AppointmentEvent) => {
     // Use staff color for the event background
-    const staffColor = event.staffColor || '#3B82F6'
-
-    // Adjust opacity based on status
+    let backgroundColor = event.staffColor || '#3B82F6'
     let opacity = 1
-    if (event.status === 'CANCELLED') opacity = 0.4
-    if (event.status === 'COMPLETED') opacity = 0.7
+
+    // Adjust based on simplified status
+    if (event.status === 'CANCELLED') {
+      backgroundColor = '#EF4444' // red
+      opacity = 0.5
+    } else if (event.status === 'COMPLETED') {
+      backgroundColor = '#22C55E' // green
+      opacity = 0.8
+    }
 
     return {
       style: {
-        backgroundColor: staffColor,
+        backgroundColor,
         border: 'none',
         borderRadius: '3px',
         padding: '2px 6px',
@@ -384,6 +390,7 @@ export default function CalendarPage() {
       customerId: '',
       staffId: '',
       scheduledAt: '',
+      returnAt: '',
       notes: '',
       estimatedAmount: 0,
       originAddress: '',
@@ -673,6 +680,7 @@ export default function CalendarPage() {
         customerId: appointment.customerId || '',
         staffId: appointment.staffId || '',
         scheduledAt: moment(appointment.scheduledAt).format('YYYY-MM-DDTHH:mm'),
+        returnAt: appointment.returnAt ? moment(appointment.returnAt).format('YYYY-MM-DDTHH:mm') : '',
         notes: appointment.notes || '',
         estimatedAmount: appointment.totalAmount || 0,
         originAddress: appointment.originAddress || '',
@@ -744,6 +752,7 @@ export default function CalendarPage() {
       const payload: Record<string, unknown> = {
         customerId: formData.customerId,
         scheduledAt: new Date(formData.scheduledAt).toISOString(),
+        returnAt: formData.returnAt ? new Date(formData.returnAt).toISOString() : null,
         originAddress: formData.originAddress,
         destinationAddress: formData.destinationAddress,
         notes: formData.notes,
@@ -831,13 +840,36 @@ export default function CalendarPage() {
     await handleStatusChange('CANCELLED')
   }
 
+  // Handle delete appointment permanently
+  const handleDeleteAppointment = async () => {
+    if (!selectedEvent) return
+    if (!confirm('¿Eliminar esta cita permanentemente? Esta acción no se puede deshacer.')) return
+
+    try {
+      const response = await fetch(`/api/appointments/${selectedEvent.appointmentId}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) {
+        throw new Error('Error al eliminar')
+      }
+
+      toast.success('Cita eliminada')
+      setShowDetailsModal(false)
+      setSelectedAppointmentDetails(null)
+      loadAppointments()
+    } catch (error) {
+      toast.error('Error al eliminar la cita')
+    }
+  }
+
   // Get status label in Spanish
   const getStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
-      'PENDING': 'Pendiente',
+      'PENDING': 'Programada',
       'SCHEDULED': 'Programada',
-      'CONFIRMED': 'Confirmada',
-      'IN_PROGRESS': 'En Progreso',
+      'CONFIRMED': 'Programada',
+      'IN_PROGRESS': 'En Curso',
       'COMPLETED': 'Completada',
       'CANCELLED': 'Cancelada'
     }
@@ -868,6 +900,7 @@ export default function CalendarPage() {
       const receiptData: ReceiptData = {
         id: appointment.id,
         scheduledAt: appointment.scheduledAt,
+        returnAt: appointment.returnAt || null,
         originAddress: appointment.originAddress || '',
         destinationAddress: appointment.destinationAddress || '',
         distanceKm: appointment.distanceKm,
@@ -900,10 +933,24 @@ export default function CalendarPage() {
     const customer = customers.find(c => c.id === event.customerId)
     const staffMember = staff.find(s => s.id === event.staffId)
 
+    // Check if it's a round trip and has return time
+    const hasReturnTime = selectedAppointmentDetails?.returnAt
+    const returnTime = hasReturnTime ? moment(selectedAppointmentDetails.returnAt).format('h:mm A') : null
+    const returnDate = hasReturnTime ? moment(selectedAppointmentDetails.returnAt).format('dddd D [de] MMMM') : null
+
     let text = `*SERVICIO PROGRAMADO*\n\n`
 
     text += `Fecha: ${scheduledDate.charAt(0).toUpperCase() + scheduledDate.slice(1)}\n`
-    text += `Hora: ${scheduledTime}\n\n`
+    text += `Hora recogida: ${scheduledTime}\n`
+    if (hasReturnTime && returnTime) {
+      const sameDay = moment(event.start).isSame(moment(selectedAppointmentDetails.returnAt), 'day')
+      if (sameDay) {
+        text += `Hora regreso: ${returnTime}\n`
+      } else {
+        text += `Regreso: ${returnDate?.charAt(0).toUpperCase()}${returnDate?.slice(1)} a las ${returnTime}\n`
+      }
+    }
+    text += `\n`
 
     text += `------------------------\n\n`
 
@@ -1095,19 +1142,13 @@ export default function CalendarPage() {
       <div className="flex items-center justify-between mb-3">
         <div className="flex gap-3">
           <span className="flex items-center gap-1 text-[10px] text-gray-500">
-            <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span> Programado
+            <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span> Programada
           </span>
           <span className="flex items-center gap-1 text-[10px] text-gray-500">
-            <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span> Confirmado
+            <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span> Completada
           </span>
           <span className="flex items-center gap-1 text-[10px] text-gray-500">
-            <span className="w-1.5 h-1.5 bg-orange-500 rounded-full"></span> En Progreso
-          </span>
-          <span className="flex items-center gap-1 text-[10px] text-gray-500">
-            <span className="w-1.5 h-1.5 bg-purple-500 rounded-full"></span> Completado
-          </span>
-          <span className="flex items-center gap-1 text-[10px] text-gray-500">
-            <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span> Cancelado
+            <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span> Cancelada
           </span>
         </div>
         <p className="text-[10px] text-gray-400">Clic en horario para nueva cita</p>
@@ -1570,15 +1611,39 @@ export default function CalendarPage() {
               </div>
             )}
 
-            <div>
-              <Label htmlFor="scheduledAt">Fecha y Hora</Label>
-              <Input
-                id="scheduledAt"
-                type="datetime-local"
-                value={formData.scheduledAt}
-                onChange={(e) => setFormData({...formData, scheduledAt: e.target.value})}
-                required
-              />
+            <div className="grid grid-cols-1 gap-3">
+              <div>
+                <Label htmlFor="scheduledAt">
+                  {formData.tripType === 'DOBLE' ? 'Fecha y Hora de Recogida (Ida)' : 'Fecha y Hora'}
+                </Label>
+                <Input
+                  id="scheduledAt"
+                  type="datetime-local"
+                  value={formData.scheduledAt}
+                  onChange={(e) => setFormData({...formData, scheduledAt: e.target.value})}
+                  required
+                />
+              </div>
+
+              {formData.tripType === 'DOBLE' && (
+                <div>
+                  <Label htmlFor="returnAt">Hora de Regreso *</Label>
+                  <Input
+                    id="returnAt"
+                    type="time"
+                    value={formData.returnAt ? formData.returnAt.split('T')[1]?.substring(0, 5) || '' : ''}
+                    onChange={(e) => {
+                      // Use same date as scheduledAt but with the new time
+                      const datepart = formData.scheduledAt ? formData.scheduledAt.split('T')[0] : ''
+                      if (datepart && e.target.value) {
+                        setFormData({...formData, returnAt: `${datepart}T${e.target.value}`})
+                      }
+                    }}
+                    required
+                  />
+                  <p className="text-[10px] text-gray-500 mt-1">Mismo día, hora de recogida para el regreso</p>
+                </div>
+              )}
             </div>
 
             <div>
@@ -1712,32 +1777,25 @@ export default function CalendarPage() {
                 </div>
               </div>
 
-              {/* Cambiar estado */}
-              {selectedEvent.status !== 'COMPLETED' && selectedEvent.status !== 'CANCELLED' && (
-                <div>
-                  <p className="text-[10px] text-gray-500 uppercase mb-2">Cambiar Estado</p>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedEvent.status !== 'CONFIRMED' && (
-                      <Button size="sm" variant="outline" className="text-xs" onClick={() => handleStatusChange('CONFIRMED')}>
-                        Confirmar
-                      </Button>
-                    )}
-                    {selectedEvent.status === 'CONFIRMED' && (
-                      <Button size="sm" variant="outline" className="text-xs" onClick={() => handleStatusChange('IN_PROGRESS')}>
-                        Iniciar
-                      </Button>
-                    )}
-                    {selectedEvent.status === 'IN_PROGRESS' && (
-                      <Button size="sm" variant="outline" className="text-xs" onClick={() => handleStatusChange('COMPLETED')}>
-                        Completar
-                      </Button>
-                    )}
-                    <Button size="sm" variant="ghost" className="text-xs text-gray-500" onClick={handleCancelAppointment}>
-                      Cancelar Cita
+              {/* Acciones */}
+              <div>
+                <p className="text-[10px] text-gray-500 uppercase mb-2">Acciones</p>
+                <div className="flex flex-wrap gap-2">
+                  {selectedEvent.status !== 'COMPLETED' && selectedEvent.status !== 'CANCELLED' && (
+                    <Button size="sm" variant="outline" className="text-xs" onClick={() => handleStatusChange('COMPLETED')}>
+                      Marcar Completada
                     </Button>
-                  </div>
+                  )}
+                  {selectedEvent.status !== 'CANCELLED' && (
+                    <Button size="sm" variant="ghost" className="text-xs text-orange-500 hover:text-orange-700" onClick={handleCancelAppointment}>
+                      Cancelar
+                    </Button>
+                  )}
+                  <Button size="sm" variant="ghost" className="text-xs text-red-500 hover:text-red-700" onClick={handleDeleteAppointment}>
+                    Eliminar
+                  </Button>
                 </div>
-              )}
+              </div>
 
               {/* Botones */}
               <div className="flex flex-col gap-2 pt-2">
