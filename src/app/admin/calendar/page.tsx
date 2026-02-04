@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Calendar, momentLocalizer, Event, View } from 'react-big-calendar'
 import moment from 'moment'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
@@ -226,19 +226,18 @@ export default function CalendarPage() {
         'la-estrella-caldas': 'La Estrella/Caldas',
         'fuera-ciudad': 'Fuera de Ciudad'
       }
-      toast.info(`Zona detectada: ${zoneNames[detectedZone] || detectedZone}`)
     }
   }, [formData.originAddress, formData.destinationAddress])
 
   // Callback when Google Maps calculates the route
-  const handleRouteCalculated = (distanceKm: number, durationMinutes: number) => {
-    setFormData(prev => ({
-      ...prev,
-      distanceKm
-    }))
+  const handleRouteCalculated = useCallback((distanceKm: number, durationMinutes: number) => {
+    setFormData(prev => {
+      // Only update if distance actually changed
+      if (prev.distanceKm === distanceKm) return prev
+      return { ...prev, distanceKm }
+    })
     setEstimatedDuration(durationMinutes)
-    toast.success(`Distancia: ${distanceKm} km (~${durationMinutes} min)`)
-  }
+  }, [])
 
   useEffect(() => {
     loadAppointments()
