@@ -87,7 +87,7 @@ export default function AdminDashboard() {
           badgeColor="gray"
         />
         <StatCard
-          title="Vehiculos Disponibles"
+          title="Conductores Activos"
           value={loading ? '-' : stats.activeResources}
           icon={Car}
           badge="Activos"

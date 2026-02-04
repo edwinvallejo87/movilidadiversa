@@ -47,8 +47,8 @@ export async function GET() {
           }
         }
       }),
-      // Active resources (vehicles)
-      prisma.resource.count({
+      // Active staff (conductors with vehicles)
+      prisma.staff.count({
         where: {
           isActive: true
         }
