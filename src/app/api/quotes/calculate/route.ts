@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
         where: { code: 'NOCTURNO' }
       })
 
-      if (nightSurcharge?.startHour !== null && nightSurcharge?.endHour !== null) {
+      if (nightSurcharge && nightSurcharge.startHour !== null && nightSurcharge.endHour !== null) {
         const startHour = nightSurcharge.startHour ?? 18
         const endHour = nightSurcharge.endHour ?? 6
         // Night is from startHour to endHour (crossing midnight)
