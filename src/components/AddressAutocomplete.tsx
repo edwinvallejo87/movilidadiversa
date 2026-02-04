@@ -49,10 +49,38 @@ export default function AddressAutocomplete({
     onChange(e.target.value)
   }
 
-  const handleSelect = async (description: string) => {
+  const handleSelect = async (description: string, placeId?: string) => {
     setValue(description, false)
     clearSuggestions()
 
+    // Try to get coordinates using Places API (place details) instead of Geocoding API
+    if (placeId && window.google?.maps?.places) {
+      try {
+        const service = new google.maps.places.PlacesService(document.createElement('div'))
+        service.getDetails(
+          { placeId, fields: ['geometry'] },
+          (place, status) => {
+            if (status === google.maps.places.PlacesServiceStatus.OK && place?.geometry?.location) {
+              const lat = place.geometry.location.lat()
+              const lng = place.geometry.location.lng()
+              onChange(description, { lat, lng })
+            } else {
+              // Fallback to Geocoding API
+              fallbackGeocode(description)
+            }
+          }
+        )
+        return
+      } catch (error) {
+        console.error('Error getting place details:', error)
+      }
+    }
+
+    // Fallback to Geocoding API
+    fallbackGeocode(description)
+  }
+
+  const fallbackGeocode = async (description: string) => {
     try {
       const results = await getGeocode({ address: description })
       const { lat, lng } = await getLatLng(results[0])
@@ -67,7 +95,7 @@ export default function AddressAutocomplete({
     if (e.key === 'Enter') {
       e.preventDefault()
       if (data.length > 0) {
-        handleSelect(data[0].description)
+        handleSelect(data[0].description, data[0].place_id)
       }
     }
   }
@@ -132,7 +160,7 @@ export default function AddressAutocomplete({
             return (
               <li
                 key={place_id}
-                onClick={() => handleSelect(suggestion.description)}
+                onClick={() => handleSelect(suggestion.description, place_id)}
                 className="px-3 py-2 cursor-pointer hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
               >
                 <span className="font-medium text-gray-900 text-sm">{main_text}</span>
