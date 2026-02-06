@@ -6,7 +6,7 @@ import { requireAuth } from '@/lib/api-auth'
 const CreateRateSchema = z.object({
   zoneId: z.string().min(1, 'Zone ID is required'),
   tripType: z.enum(['SENCILLO', 'DOBLE']),
-  equipmentType: z.enum(['RAMPA', 'ROBOTICA_PLEGABLE']),
+  equipmentType: z.string().min(1, 'Equipment type is required'),
   originType: z.enum(['MISMO_MUNICIPIO', 'DESDE_MEDELLIN']).nullable().optional(),
   distanceRange: z.string().nullable().optional(),
   destinationName: z.string().nullable().optional(),
