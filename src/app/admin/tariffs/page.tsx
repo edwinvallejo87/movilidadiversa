@@ -142,7 +142,7 @@ export default function TariffsPage() {
     const isOutOfCity = selectedZoneData?.slug === 'fuera-ciudad'
 
     // Validation
-    if (!newRate.zoneId || !newRate.price) {
+    if (!newRate.zoneId || newRate.price === '' || newRate.price === undefined) {
       toast.error('Completa todos los campos requeridos')
       return
     }
