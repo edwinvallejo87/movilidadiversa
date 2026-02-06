@@ -333,7 +333,7 @@ export default function TariffsPage() {
                     </div>
                   </div>
 
-                  {selectedZoneData?.slug === 'medellin' && (
+                  {selectedZoneData?.slug === 'medellin' && !(newRate.price === '0' || (newRate.price !== '' && parseInt(newRate.price) === 0)) && (
                     <div>
                       <Label>Rango de Distancia</Label>
                       <Select value={newRate.distanceRange} onValueChange={(v) => setNewRate({...newRate, distanceRange: v})}>
