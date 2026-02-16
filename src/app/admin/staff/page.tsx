@@ -129,7 +129,7 @@ export default function StaffPage() {
         type: 'DRIVER',
         email: formData.email?.trim() || null,
         capacity: formData.capacity ? parseInt(formData.capacity) : null,
-        isWheelchairAccessible: formData.equipmentType === 'RAMPA'
+        isWheelchairAccessible: true
       }
 
       if (editingStaff) {
@@ -624,7 +624,7 @@ export default function StaffPage() {
                     </td>
                     <td className="px-3 py-2">
                       <Badge variant="outline" className="text-[10px]">
-                        {member.equipmentType === 'RAMPA' ? 'Rampa' : 'Robotica'}
+                        {getEquipmentShortName(member.equipmentType)}
                       </Badge>
                     </td>
                     <td className="px-3 py-2">

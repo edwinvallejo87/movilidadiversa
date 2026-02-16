@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/api-auth'
+import { z } from 'zod'
+
+const UpdateDestinationSchema = z.object({
+  name: z.string().min(1, 'Nombre es requerido'),
+  tripType: z.string().min(1, 'Tipo de viaje es requerido'),
+  equipmentType: z.string().min(1, 'Tipo de equipo es requerido'),
+  originType: z.string().optional().nullable(),
+  price: z.number().min(0, 'Precio debe ser mayor o igual a 0'),
+})
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -13,16 +22,23 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params
     const body = await request.json()
-    const { name, tripType, equipmentType, originType, price } = body
+    const parsed = UpdateDestinationSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Datos inválidos', details: parsed.error.flatten().fieldErrors },
+        { status: 400 }
+      )
+    }
+    const data = parsed.data
 
     const destination = await prisma.outOfCityDestination.update({
       where: { id },
       data: {
-        name,
-        tripType,
-        equipmentType,
-        originType: originType || null,
-        price
+        name: data.name,
+        tripType: data.tripType,
+        equipmentType: data.equipmentType,
+        originType: data.originType || null,
+        price: data.price,
       }
     })
 

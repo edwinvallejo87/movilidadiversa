@@ -1,5 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { z } from 'zod'
+
+const CreateClientSchema = z.object({
+  name: z.string().min(1, 'Nombre es requerido'),
+  email: z.string().email().optional().nullable(),
+  phone: z.string().min(1, 'Teléfono es requerido'),
+  document: z.string().optional().nullable(),
+  age: z.union([z.number(), z.string()]).optional().nullable(),
+  weight: z.union([z.number(), z.string()]).optional().nullable(),
+  wheelchairType: z.string().optional().nullable(),
+  address: z.string().optional().nullable(),
+  medicalNotes: z.string().optional().nullable(),
+  medicalNeeds: z.string().optional().nullable(),
+  mobilityAid: z.string().optional().nullable(),
+  emergencyContact: z.string().optional().nullable(),
+  emergencyPhone: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
+  isActive: z.boolean().optional().default(true),
+})
 
 export async function GET(request: NextRequest) {
   try {
@@ -47,45 +66,29 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const {
-      name,
-      email,
-      phone,
-      document,
-      age,
-      weight,
-      wheelchairType,
-      address,
-      medicalNotes,
-      medicalNeeds,
-      mobilityAid,
-      emergencyContact,
-      emergencyPhone,
-      notes,
-      isActive = true
-    } = body
-
-    if (!name || !phone) {
+    const parsed = CreateClientSchema.safeParse(body)
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: 'Nombre y teléfono son requeridos' },
+        { error: 'Datos inválidos', details: parsed.error.flatten().fieldErrors },
         { status: 400 }
       )
     }
+    const data = parsed.data
 
     const customer = await prisma.customer.create({
       data: {
-        name,
-        email: email || null,
-        phone,
-        document: document || null,
-        age: age ? parseInt(age) : null,
-        weight: weight ? parseFloat(weight) : null,
-        wheelchairType: wheelchairType || null,
-        defaultAddress: address || null,
-        medicalNotes: medicalNotes || medicalNeeds || null,
-        mobilityNeeds: mobilityAid && mobilityAid !== 'NONE' ? JSON.stringify([mobilityAid]) : null,
-        emergencyContact: emergencyContact || null,
-        isActive
+        name: data.name,
+        email: data.email || null,
+        phone: data.phone,
+        document: data.document || null,
+        age: data.age ? parseInt(String(data.age)) : null,
+        weight: data.weight ? parseFloat(String(data.weight)) : null,
+        wheelchairType: data.wheelchairType || null,
+        defaultAddress: data.address || null,
+        medicalNotes: data.medicalNotes || data.medicalNeeds || null,
+        mobilityNeeds: data.mobilityAid && data.mobilityAid !== 'NONE' ? JSON.stringify([data.mobilityAid]) : null,
+        emergencyContact: data.emergencyContact || null,
+        isActive: data.isActive,
       }
     })
 

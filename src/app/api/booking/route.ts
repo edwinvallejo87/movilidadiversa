@@ -14,7 +14,7 @@ const BookingSchema = z.object({
   scheduledAt: z.string(), // ISO date string
 
   // Service options
-  equipmentType: z.enum(['RAMPA', 'ROBOTICA_PLEGABLE']),
+  equipmentType: z.string().min(1),
   tripType: z.enum(['SENCILLO', 'DOBLE']),
 
   // Pricing

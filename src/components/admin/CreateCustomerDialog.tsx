@@ -25,7 +25,7 @@ import { PlusCircle } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface CreateCustomerDialogProps {
-  onCustomerCreated: (customer: { id: string; name: string; phone: string }) => void
+  onCustomerCreated: (customer: { id: string; name: string; phone: string; document?: string | null; defaultAddress?: string | null; age?: number | null; weight?: number | null; wheelchairType?: string | null; emergencyContact?: string | null }) => void
   trigger?: React.ReactNode
 }
 
@@ -58,6 +58,7 @@ export function CreateCustomerDialog({ onCustomerCreated, trigger }: CreateCusto
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    e.stopPropagation()
 
     if (!formData.name.trim() || !formData.phone.trim()) {
       toast.error('Nombre y teléfono son requeridos')
@@ -85,7 +86,13 @@ export function CreateCustomerDialog({ onCustomerCreated, trigger }: CreateCusto
       onCustomerCreated({
         id: newCustomer.id,
         name: newCustomer.name,
-        phone: newCustomer.phone
+        phone: newCustomer.phone,
+        document: newCustomer.document || null,
+        defaultAddress: newCustomer.defaultAddress || null,
+        age: newCustomer.age || null,
+        weight: newCustomer.weight || null,
+        wheelchairType: newCustomer.wheelchairType || null,
+        emergencyContact: newCustomer.emergencyContact || null
       })
 
       setOpen(false)
@@ -113,7 +120,11 @@ export function CreateCustomerDialog({ onCustomerCreated, trigger }: CreateCusto
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent
+        className="max-w-lg max-h-[85vh] overflow-y-auto"
+        onPointerDownOutside={(e) => e.stopPropagation()}
+        onInteractOutside={(e) => e.stopPropagation()}
+      >
         <DialogHeader>
           <DialogTitle className="text-sm font-medium">Crear Nuevo Cliente</DialogTitle>
           <DialogDescription className="text-xs">

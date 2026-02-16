@@ -24,7 +24,7 @@ const FullUpdateAppointmentSchema = z.object({
   notes: z.string().optional().nullable(),
   estimatedAmount: z.number().optional(),
   distanceKm: z.number().optional(),
-  equipmentType: z.enum(['RAMPA', 'ROBOTICA_PLEGABLE']).optional(),
+  equipmentType: z.string().min(1).optional(),
   status: z.enum(['PENDING', 'SCHEDULED', 'CONFIRMED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional(),
   pricingBreakdown: z.array(z.object({
     item: z.string(),

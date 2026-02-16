@@ -1,5 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { z } from 'zod'
+
+const CalculateBookingSchema = z.object({
+  originAddress: z.string().min(1, 'Dirección de origen es requerida'),
+  destinationAddress: z.string().min(1, 'Dirección de destino es requerida'),
+  equipmentType: z.string().min(1, 'Tipo de equipo es requerido'),
+  tripType: z.string().min(1, 'Tipo de viaje es requerido'),
+  scheduledAt: z.string().optional().nullable(),
+})
 
 // Zone detection from address
 function detectZoneFromAddress(address: string): { zone: string | null, isOutOfCity: boolean } {
@@ -70,14 +79,14 @@ function isWeekendOrHoliday(date: Date): boolean {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { originAddress, destinationAddress, equipmentType, tripType, scheduledAt } = body
-
-    if (!originAddress || !destinationAddress || !equipmentType || !tripType) {
+    const parsed = CalculateBookingSchema.safeParse(body)
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: 'Faltan datos requeridos' },
+        { error: 'Faltan datos requeridos', details: parsed.error.flatten().fieldErrors },
         { status: 400 }
       )
     }
+    const { originAddress, destinationAddress, equipmentType, tripType, scheduledAt } = parsed.data
 
     const scheduledDate = scheduledAt ? new Date(scheduledAt) : new Date()
 
@@ -120,9 +129,10 @@ export async function POST(request: NextRequest) {
         basePrice = destination.price
         zoneName = destination.name
       } else {
-        // Fallback price for out of city
-        basePrice = tripType === 'DOBLE' ? 350000 : 250000
-        zoneName = 'Fuera de la ciudad'
+        return NextResponse.json(
+          { error: 'No se encontró tarifa para destino fuera de ciudad' },
+          { status: 404 }
+        )
       }
       breakdown.push({ item: `Ruta ${zoneName} (${tripType === 'DOBLE' ? 'Ida y vuelta' : 'Solo ida'})`, amount: basePrice })
     } else {
@@ -132,12 +142,10 @@ export async function POST(request: NextRequest) {
       })
 
       if (!zone) {
-        // Fallback to default prices
-        basePrice = tripType === 'DOBLE' ? 130000 : 70000
-        if (equipmentType === 'ROBOTICA_PLEGABLE') {
-          basePrice = tripType === 'DOBLE' ? 180000 : 98000
-        }
-        zoneName = 'Área Metropolitana'
+        return NextResponse.json(
+          { error: `No se encontró la zona: ${pricingZone}` },
+          { status: 404 }
+        )
       } else {
         // Find rate for this zone
         const originType = detectOriginType(originDetection.zone, destDetection.zone)
@@ -158,15 +166,16 @@ export async function POST(request: NextRequest) {
         if (rate) {
           basePrice = rate.price
         } else {
-          // Fallback prices
-          basePrice = tripType === 'DOBLE' ? 130000 : 70000
-          if (equipmentType === 'ROBOTICA_PLEGABLE') {
-            basePrice = tripType === 'DOBLE' ? 180000 : 98000
-          }
+          return NextResponse.json(
+            { error: `No se encontró tarifa para la zona ${zone.name} con equipo ${equipmentType}` },
+            { status: 404 }
+          )
         }
         zoneName = zone.name
       }
-      breakdown.push({ item: `Servicio ${equipmentType === 'ROBOTICA_PLEGABLE' ? 'Silla Robótica' : 'Rampa'} - ${zoneName}`, amount: basePrice })
+      const equipLabels: Record<string, string> = { 'RAMPA': 'Rampa', 'ROBOTICA_PLEGABLE': 'Silla Robótica' }
+      const equipName = equipLabels[equipmentType] || equipmentType.charAt(0).toUpperCase() + equipmentType.slice(1).toLowerCase().replace(/_/g, ' ')
+      breakdown.push({ item: `Servicio ${equipName} - ${zoneName}`, amount: basePrice })
     }
 
     // Calculate surcharges
@@ -177,8 +186,9 @@ export async function POST(request: NextRequest) {
       const nightSurcharge = await prisma.surcharge.findFirst({
         where: { code: 'NOCTURNO' }
       })
-      const nightAmount = nightSurcharge?.price || 35000
-      surcharges.push({ item: 'Recargo nocturno (6PM - 6AM)', amount: nightAmount })
+      if (nightSurcharge) {
+        surcharges.push({ item: nightSurcharge.name || 'Recargo nocturno (6PM - 6AM)', amount: nightSurcharge.price })
+      }
     }
 
     // Weekend/holiday surcharge
@@ -186,8 +196,9 @@ export async function POST(request: NextRequest) {
       const weekendSurcharge = await prisma.surcharge.findFirst({
         where: { code: 'DOMINICAL_FESTIVO' }
       })
-      const weekendAmount = weekendSurcharge?.price || 35000
-      surcharges.push({ item: 'Recargo domingo/festivo', amount: weekendAmount })
+      if (weekendSurcharge) {
+        surcharges.push({ item: weekendSurcharge.name || 'Recargo domingo/festivo', amount: weekendSurcharge.price })
+      }
     }
 
     // Calculate total

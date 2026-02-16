@@ -47,7 +47,7 @@ export default function BookingPage() {
 
   const [formData, setFormData] = useState({
     // Service
-    equipmentType: '' as 'RAMPA' | 'ROBOTICA_PLEGABLE' | '',
+    equipmentType: '' as string,
     tripType: '' as 'SENCILLO' | 'DOBLE' | '',
 
     // Route
@@ -561,7 +561,7 @@ export default function BookingPage() {
                 <div className="flex justify-between p-3">
                   <span className="text-xs text-gray-500">Servicio</span>
                   <span className="text-xs font-medium text-gray-900">
-                    {formData.equipmentType === 'ROBOTICA_PLEGABLE' ? 'Silla Robótica' : 'Rampa'}
+                    {{'RAMPA': 'Rampa', 'ROBOTICA_PLEGABLE': 'Silla Robótica'}[formData.equipmentType] || formData.equipmentType}
                   </span>
                 </div>
                 <div className="flex justify-between p-3">

@@ -135,7 +135,8 @@ export function StaffSearch({ staff, value, onChange, placeholder = 'Buscar cond
   }
 
   const getEquipmentLabel = (type: string) => {
-    return type === 'ROBOTICA_PLEGABLE' ? 'Robótica' : 'Rampa'
+    const labels: Record<string, string> = { 'RAMPA': 'Rampa', 'ROBOTICA_PLEGABLE': 'Robótica' }
+    return labels[type] || type.charAt(0).toUpperCase() + type.slice(1).toLowerCase().replace(/_/g, ' ')
   }
 
   return (

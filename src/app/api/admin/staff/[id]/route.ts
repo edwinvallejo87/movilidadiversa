@@ -14,7 +14,7 @@ const UpdateStaffSchema = z.object({
   vehicleModel: z.string().optional(),
   capacity: z.number().int().min(1).optional().nullable(),
   isWheelchairAccessible: z.boolean().optional(),
-  equipmentType: z.enum(['RAMPA', 'ROBOTICA_PLEGABLE']).optional(),
+  equipmentType: z.string().min(1).optional(),
   licenseNumber: z.string().optional(),
   workDays: z.string().optional(),
   workStartTime: z.string().optional(),

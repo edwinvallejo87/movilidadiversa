@@ -38,6 +38,15 @@ interface AppointmentEvent extends Event {
   destinationAddress: string
 }
 
+const EQUIPMENT_LABELS: Record<string, string> = {
+  'RAMPA': 'Rampa',
+  'ROBOTICA_PLEGABLE': 'Robótica',
+}
+
+function getEquipmentLabel(type: string): string {
+  return EQUIPMENT_LABELS[type] || type.charAt(0).toUpperCase() + type.slice(1).toLowerCase().replace(/_/g, ' ')
+}
+
 export default function CalendarPage() {
   const [events, setEvents] = useState<AppointmentEvent[]>([])
   const [view, setView] = useState<View>('week')
@@ -247,7 +256,7 @@ export default function CalendarPage() {
   const loadFormData = async () => {
     try {
       const [customersRes, staffRes, pricingZonesRes, additionalServicesRes, destinationsRes] = await Promise.all([
-        fetch('/api/admin/clients'),
+        fetch('/api/admin/clients?limit=500'),
         fetch('/api/admin/staff'),
         fetch('/api/quotes/calculate?type=zones'),
         fetch('/api/quotes/calculate?type=additional-services'),
@@ -293,11 +302,11 @@ export default function CalendarPage() {
 
       const appointmentEvents: AppointmentEvent[] = appointmentsArray.map((apt: any) => {
         // Get equipment type from staff or fallback
-        const equipmentType = apt.staff?.equipmentType || 'RAMPA'
-        const equipmentLabel = equipmentType === 'ROBOTICA_PLEGABLE' ? 'Robótica' : 'Rampa'
+        const equipmentType = apt.equipmentType || apt.staff?.equipmentType || 'RAMPA'
+        const equipmentLabel = getEquipmentLabel(equipmentType)
 
         // Title: Customer - Equipment Type (Driver)
-        let title = `${apt.customer.name} - ${equipmentLabel}`
+        let title = `${apt.customer?.name || 'Sin cliente'} - ${equipmentLabel}`
         if (apt.staff?.name) {
           title += ` (${apt.staff.name})`
         }
@@ -312,7 +321,7 @@ export default function CalendarPage() {
           staffId: apt.staffId,
           status: apt.status,
           equipmentType,
-          customerName: apt.customer.name,
+          customerName: apt.customer?.name || 'Sin cliente',
           staffName: apt.staff?.name || 'Sin asignar',
           staffColor: apt.staff?.color || '#3B82F6',
           totalAmount: apt.totalAmount,
@@ -636,6 +645,11 @@ export default function CalendarPage() {
 
       const appointment = await response.json()
 
+      // Ensure the appointment's customer is in the local customers array
+      if (appointment.customer && !customers.find((c: any) => c.id === appointment.customerId)) {
+        setCustomers(prev => [...prev, appointment.customer])
+      }
+
       // Extract additional services from pricingSnapshot
       let savedAdditionalServices: any[] = []
       if (appointment.pricingSnapshot) {
@@ -706,9 +720,13 @@ export default function CalendarPage() {
   }
 
   // Handle new customer created from dialog
-  const handleCustomerCreated = (newCustomer: { id: string; name: string; phone: string }) => {
+  const handleCustomerCreated = (newCustomer: { id: string; name: string; phone: string; defaultAddress?: string | null; [key: string]: any }) => {
     setCustomers(prev => [...prev, newCustomer])
-    setFormData(prev => ({ ...prev, customerId: newCustomer.id }))
+    setFormData(prev => ({
+      ...prev,
+      customerId: newCustomer.id,
+      originAddress: newCustomer.defaultAddress || prev.originAddress
+    }))
     toast.info(`Cliente "${newCustomer.name}" seleccionado`)
   }
 
@@ -968,7 +986,7 @@ export default function CalendarPage() {
 
     text += `------------------------\n\n`
 
-    text += `Vehiculo: ${event.equipmentType === 'RAMPA' ? 'Rampa' : event.equipmentType === 'ROBOTICA_PLEGABLE' ? 'Robotica' : event.equipmentType}\n`
+    text += `Vehiculo: ${getEquipmentLabel(event.equipmentType)}\n`
 
     // Extract additional services from pricingSnapshot
     if (selectedAppointmentDetails?.pricingSnapshot) {
@@ -1024,14 +1042,14 @@ export default function CalendarPage() {
         text += `\n*DATOS DEL PASAJERO:*\n`
         if (customer.age) text += `Edad: ${customer.age} anos\n`
         if (customer.weight) text += `Peso: ${customer.weight} kg\n`
-        if (customer.wheelchairType && customer.wheelchairType !== 'none') {
+        if (customer.wheelchairType && customer.wheelchairType !== 'NO_TIENE' && customer.wheelchairType !== 'none') {
           const wheelchairLabels: Record<string, string> = {
-            'manual-plegable': 'Manual plegable',
-            'manual-rigida': 'Manual rigida',
-            'electrica': 'Electrica/Motorizada',
-            'traslado': 'De traslado',
-            'bariatrica': 'Bariatrica',
-            'neurologica': 'Neurologica/Postural',
+            'MANUAL_PLEGABLE': 'Manual plegable',
+            'MANUAL_RIGIDA': 'Manual rigida',
+            'ELECTRICA': 'Electrica/Motorizada',
+            'TRANSPORTE': 'De traslado',
+            'BARIATRICA': 'Bariatrica',
+            'NEUROLOGICA': 'Neurologica/Postural',
           }
           text += `Silla: ${wheelchairLabels[customer.wheelchairType] || customer.wheelchairType}\n`
         }
@@ -1257,11 +1275,20 @@ export default function CalendarPage() {
                         }
                       }
 
+                      // Auto-fill origin address from customer's default address
+                      const newOrigin = selectedCustomer?.defaultAddress || formData.originAddress
+
                       setFormData({
                         ...formData,
                         customerId: value,
-                        notes: autoNotes
+                        notes: autoNotes,
+                        originAddress: newOrigin
                       })
+
+                      // Set origin coordinates if customer has them
+                      if (selectedCustomer?.defaultLat && selectedCustomer?.defaultLng) {
+                        setOriginCoords({ lat: selectedCustomer.defaultLat, lng: selectedCustomer.defaultLng })
+                      }
                     }}
                     placeholder="Buscar por nombre, cedula o telefono..."
                   />
@@ -1291,7 +1318,7 @@ export default function CalendarPage() {
               <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-100 rounded text-xs">
                 <Car className="w-3.5 h-3.5 text-blue-600" />
                 <span className="text-blue-700">
-                  Tipo de equipo: <strong>{formData.equipmentType === 'ROBOTICA_PLEGABLE' ? 'Silla Robótica/Plegable' : 'Vehículo con Rampa'}</strong>
+                  Tipo de equipo: <strong>{getEquipmentLabel(formData.equipmentType)}</strong>
                 </span>
               </div>
             )}
@@ -1771,7 +1798,7 @@ export default function CalendarPage() {
                 <div>
                   <p className="text-[10px] text-gray-500 uppercase mb-1">Equipo</p>
                   <p className="text-sm text-gray-900">
-                    {selectedEvent.equipmentType === 'ROBOTICA_PLEGABLE' ? 'Robótica' : 'Rampa'}
+                    {getEquipmentLabel(selectedEvent.equipmentType)}
                   </p>
                 </div>
               </div>

@@ -55,7 +55,11 @@ const formatTime = (date: Date | string): string => {
 }
 
 const getEquipmentLabel = (type: string): string => {
-  return type === 'ROBOTICA_PLEGABLE' ? 'Silla Robotica/Plegable' : 'Vehiculo con Rampa'
+  const labels: Record<string, string> = {
+    'RAMPA': 'Vehiculo con Rampa',
+    'ROBOTICA_PLEGABLE': 'Silla Robotica/Plegable'
+  }
+  return labels[type] || type.charAt(0).toUpperCase() + type.slice(1).toLowerCase().replace(/_/g, ' ')
 }
 
 const getTripTypeLabel = (type?: string): string => {

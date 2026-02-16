@@ -1,6 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/api-auth'
+import { z } from 'zod'
+
+const CreateStaffSchema = z.object({
+  name: z.string().min(1, 'Nombre es requerido'),
+  email: z.string().email().optional().nullable(),
+  phone: z.string().optional().nullable(),
+  type: z.string().optional().default('DRIVER'),
+  status: z.string().optional().default('AVAILABLE'),
+  color: z.string().optional().default('#3B82F6'),
+  licensePlate: z.string().optional().nullable(),
+  vehicleModel: z.string().optional().nullable(),
+  capacity: z.number().optional().nullable(),
+  isWheelchairAccessible: z.boolean().optional().default(false),
+  equipmentType: z.string().optional().default('RAMPA'),
+  licenseNumber: z.string().optional().nullable(),
+  workDays: z.string().optional().default('1,2,3,4,5'),
+  workStartTime: z.string().optional().default('07:00'),
+  workEndTime: z.string().optional().default('19:00'),
+  isActive: z.boolean().optional().default(true),
+})
 
 export async function GET() {
   const { error } = await requireAuth()
@@ -32,43 +52,33 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const {
-      name,
-      email,
-      phone,
-      type,
-      status,
-      color,
-      licensePlate,
-      vehicleModel,
-      capacity,
-      isWheelchairAccessible,
-      equipmentType,
-      licenseNumber,
-      workDays,
-      workStartTime,
-      workEndTime,
-      isActive
-    } = body
+    const parsed = CreateStaffSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Datos inválidos', details: parsed.error.flatten().fieldErrors },
+        { status: 400 }
+      )
+    }
+    const data = parsed.data
 
     const staff = await prisma.staff.create({
       data: {
-        name,
-        email: email || null,
-        phone: phone || null,
-        type: type || 'DRIVER',
-        status: status || 'AVAILABLE',
-        color: color || '#3B82F6',
-        licensePlate: licensePlate || null,
-        vehicleModel: vehicleModel || null,
-        capacity: capacity || null,
-        isWheelchairAccessible: isWheelchairAccessible ?? false,
-        equipmentType: equipmentType || 'RAMPA',
-        licenseNumber: licenseNumber || null,
-        workDays: workDays || '1,2,3,4,5',
-        workStartTime: workStartTime || '07:00',
-        workEndTime: workEndTime || '19:00',
-        isActive: isActive ?? true
+        name: data.name,
+        email: data.email || null,
+        phone: data.phone || null,
+        type: data.type,
+        status: data.status,
+        color: data.color,
+        licensePlate: data.licensePlate || null,
+        vehicleModel: data.vehicleModel || null,
+        capacity: data.capacity || null,
+        isWheelchairAccessible: data.isWheelchairAccessible,
+        equipmentType: data.equipmentType,
+        licenseNumber: data.licenseNumber || null,
+        workDays: data.workDays,
+        workStartTime: data.workStartTime,
+        workEndTime: data.workEndTime,
+        isActive: data.isActive,
       },
       include: {
         _count: {

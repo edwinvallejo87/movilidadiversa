@@ -57,22 +57,29 @@ export async function GET(request: NextRequest) {
   }
 }
 
-interface QuoteRequest {
-  zoneSlug: string
-  tripType: 'SENCILLO' | 'DOBLE'
-  equipmentType: 'RAMPA' | 'ROBOTICA_PLEGABLE'
-  originType?: 'DESDE_MEDELLIN' | 'MISMO_MUNICIPIO' | 'MISMA_CIUDAD'
-  distanceKm?: number // Only for Medellin
-  outOfCityDestination?: string // e.g., "Aeropuerto JMC", "Rionegro", "La Ceja"
-  extraKm?: number // Additional km for out of city
-  additionalServices?: Array<{
-    code: string
-    quantity?: number
-  }>
-  scheduledAt?: string // ISO date string
-  isNightSchedule?: boolean
-  isHolidayOrSunday?: boolean
+import { z } from 'zod'
+
+function getEquipLabel(type: string): string {
+  const labels: Record<string, string> = { 'RAMPA': 'Rampa', 'ROBOTICA_PLEGABLE': 'Robotica/Plegable' }
+  return labels[type] || type.charAt(0).toUpperCase() + type.slice(1).toLowerCase().replace(/_/g, ' ')
 }
+
+const QuoteRequestSchema = z.object({
+  zoneSlug: z.string().min(1, 'Zona es requerida'),
+  tripType: z.enum(['SENCILLO', 'DOBLE']),
+  equipmentType: z.string().min(1, 'Tipo de equipo es requerido'),
+  originType: z.enum(['DESDE_MEDELLIN', 'MISMO_MUNICIPIO', 'MISMA_CIUDAD']).optional(),
+  distanceKm: z.number().optional(),
+  outOfCityDestination: z.string().optional(),
+  extraKm: z.number().optional(),
+  additionalServices: z.array(z.object({
+    code: z.string(),
+    quantity: z.number().optional(),
+  })).optional().default([]),
+  scheduledAt: z.string().optional(),
+  isNightSchedule: z.boolean().optional().default(false),
+  isHolidayOrSunday: z.boolean().optional().default(false),
+})
 
 interface BreakdownItem {
   item: string
@@ -86,7 +93,14 @@ interface BreakdownItem {
 // POST - Calculate quote
 export async function POST(request: NextRequest) {
   try {
-    const body: QuoteRequest = await request.json()
+    const body = await request.json()
+    const parsed = QuoteRequestSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Datos inválidos', details: parsed.error.flatten().fieldErrors },
+        { status: 400 }
+      )
+    }
     const {
       zoneSlug,
       tripType,
@@ -95,11 +109,11 @@ export async function POST(request: NextRequest) {
       distanceKm,
       outOfCityDestination,
       extraKm,
-      additionalServices = [],
+      additionalServices,
       scheduledAt,
-      isNightSchedule: isNightScheduleParam = false,
-      isHolidayOrSunday: isHolidayOrSundayParam = false
-    } = body
+      isNightSchedule: isNightScheduleParam,
+      isHolidayOrSunday: isHolidayOrSundayParam
+    } = parsed.data
 
     // Calculate night schedule and holiday from scheduledAt if provided
     let isNightSchedule = isNightScheduleParam
@@ -125,14 +139,6 @@ export async function POST(request: NextRequest) {
       isHolidayOrSunday = scheduledDate.getDay() === 0
     }
 
-    // Validate required fields
-    if (!zoneSlug || !tripType || !equipmentType) {
-      return NextResponse.json(
-        { error: 'Missing required fields: zoneSlug, tripType, equipmentType' },
-        { status: 400 }
-      )
-    }
-
     const breakdown: BreakdownItem[] = []
     let totalPrice = 0
 
@@ -151,14 +157,25 @@ export async function POST(request: NextRequest) {
     // CASE 1: Out of city destination
     if (zoneSlug === 'fuera-ciudad' && outOfCityDestination) {
       // For out-of-city, always use DESDE_MEDELLIN as that's how rates are defined
-      const destination = await prisma.outOfCityDestination.findFirst({
+      // Try exact equipment type first, then fallback to RAMPA base rate
+      let destination = await prisma.outOfCityDestination.findFirst({
         where: {
           name: outOfCityDestination,
           tripType: tripType,
-          equipmentType: equipmentType === 'ROBOTICA_PLEGABLE' ? 'RAMPA' : equipmentType, // Out of city only has RAMPA base
+          equipmentType: equipmentType,
           originType: 'DESDE_MEDELLIN'
         }
       })
+      if (!destination && equipmentType !== 'RAMPA') {
+        destination = await prisma.outOfCityDestination.findFirst({
+          where: {
+            name: outOfCityDestination,
+            tripType: tripType,
+            equipmentType: 'RAMPA',
+            originType: 'DESDE_MEDELLIN'
+          }
+        })
+      }
 
       if (destination) {
         breakdown.push({
@@ -224,10 +241,8 @@ export async function POST(request: NextRequest) {
       if (rate) {
         const distanceLabel = distanceRange === 'HASTA_3KM' ? '(hasta 3km)' :
                               distanceRange === 'DE_3_A_10KM' ? '(3-10km)' : '(mas de 10km)'
-        const equipLabel = equipmentType === 'RAMPA' ? 'Rampa' : 'Robotica/Plegable'
-
         breakdown.push({
-          item: `${tripType === 'SENCILLO' ? 'Viaje sencillo' : 'Viaje doble'} ${equipLabel} ${distanceLabel}`,
+          item: `${tripType === 'SENCILLO' ? 'Viaje sencillo' : 'Viaje doble'} ${getEquipLabel(equipmentType)} ${distanceLabel}`,
           unitPrice: rate.price,
           subtotal: rate.price
         })
@@ -254,10 +269,9 @@ export async function POST(request: NextRequest) {
 
       if (rate) {
         const originLabel = effectiveOriginType === 'DESDE_MEDELLIN' ? 'desde Medellin' : 'mismo municipio'
-        const equipLabel = equipmentType === 'RAMPA' ? 'Rampa' : 'Robotica/Plegable'
 
         breakdown.push({
-          item: `${tripType === 'SENCILLO' ? 'Viaje sencillo' : 'Viaje doble'} ${equipLabel} (${originLabel})`,
+          item: `${tripType === 'SENCILLO' ? 'Viaje sencillo' : 'Viaje doble'} ${getEquipLabel(equipmentType)} (${originLabel})`,
           unitPrice: rate.price,
           subtotal: rate.price
         })

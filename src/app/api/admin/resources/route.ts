@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/api-auth'
+import { z } from 'zod'
+
+const CreateResourceSchema = z.object({
+  name: z.string().min(1, 'Nombre es requerido'),
+  type: z.string().optional().default('VEHICLE'),
+  color: z.string().optional().default('#3B82F6'),
+  isActive: z.boolean().optional().default(true),
+})
 
 export async function GET() {
   const { error } = await requireAuth()
@@ -27,14 +35,21 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { name, type, color, isActive } = body
+    const parsed = CreateResourceSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Datos inválidos', details: parsed.error.flatten().fieldErrors },
+        { status: 400 }
+      )
+    }
+    const data = parsed.data
 
     const resource = await prisma.resource.create({
       data: {
-        name,
-        type: type || 'VEHICLE',
-        color: color || '#3B82F6',
-        isActive: isActive ?? true
+        name: data.name,
+        type: data.type,
+        color: data.color,
+        isActive: data.isActive,
       }
     })
 

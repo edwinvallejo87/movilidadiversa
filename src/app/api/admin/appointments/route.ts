@@ -8,7 +8,7 @@ const CreateAdminAppointmentSchema = z.object({
   serviceId: z.string().min(1).optional().nullable(),  // Optional - legacy
   staffId: z.string().min(1).optional().nullable(),
   resourceId: z.string().min(1).optional(),
-  equipmentType: z.enum(['RAMPA', 'ROBOTICA_PLEGABLE']).optional().default('RAMPA'),
+  equipmentType: z.string().min(1).optional().default('RAMPA'),
   scheduledAt: z.string().datetime(),
   returnAt: z.string().datetime().optional().nullable(),  // Return time for round trips
   originAddress: z.string().optional(),
