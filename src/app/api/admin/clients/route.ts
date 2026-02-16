@@ -14,6 +14,7 @@ const CreateClientSchema = z.object({
   medicalNotes: z.string().optional().nullable(),
   medicalNeeds: z.string().optional().nullable(),
   mobilityAid: z.string().optional().nullable(),
+  requiresAssistant: z.boolean().optional().default(false),
   emergencyContact: z.string().optional().nullable(),
   emergencyPhone: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
@@ -87,7 +88,9 @@ export async function POST(request: NextRequest) {
         defaultAddress: data.address || null,
         medicalNotes: data.medicalNotes || data.medicalNeeds || null,
         mobilityNeeds: data.mobilityAid && data.mobilityAid !== 'NONE' ? JSON.stringify([data.mobilityAid]) : null,
+        requiresAssistant: data.requiresAssistant || false,
         emergencyContact: data.emergencyContact || null,
+        emergencyPhone: data.emergencyPhone || null,
         isActive: data.isActive,
       }
     })

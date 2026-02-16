@@ -238,6 +238,8 @@ model Customer {
 
   // Additional info
   emergencyContact   String?
+  emergencyPhone     String?
+  requiresAssistant  Boolean  @default(false)
   medicalNotes       String?
   mobilityNeeds      String?  // JSON: ["wheelchair", "walker"]
   preferredLanguage  String   @default("es")
@@ -297,6 +299,7 @@ model Appointment {
   staffId               String?           // Assigned staff member
   resourceId            String?           // Assigned resource/vehicle
   equipmentType         String            @default("RAMPA")  // RAMPA or ROBOTICA_PLEGABLE - from conductor
+  tripType              String            @default("SENCILLO")  // SENCILLO or DOBLE
 
   // Location details
   originAddress         String

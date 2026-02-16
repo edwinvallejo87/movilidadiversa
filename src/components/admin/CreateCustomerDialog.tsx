@@ -25,7 +25,7 @@ import { PlusCircle } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface CreateCustomerDialogProps {
-  onCustomerCreated: (customer: { id: string; name: string; phone: string; document?: string | null; defaultAddress?: string | null; age?: number | null; weight?: number | null; wheelchairType?: string | null; emergencyContact?: string | null }) => void
+  onCustomerCreated: (customer: { id: string; name: string; phone: string; document?: string | null; defaultAddress?: string | null; age?: number | null; weight?: number | null; emergencyContact?: string | null; emergencyPhone?: string | null; requiresAssistant?: boolean; medicalNotes?: string | null; mobilityNeeds?: string | null }) => void
   trigger?: React.ReactNode
 }
 
@@ -36,7 +36,6 @@ const initialFormData = {
   document: '',
   age: '',
   weight: '',
-  wheelchairType: '',
   address: '',
   medicalNeeds: '',
   mobilityAid: 'NONE' as 'WHEELCHAIR' | 'WALKER' | 'CRUTCHES' | 'NONE',
@@ -91,8 +90,11 @@ export function CreateCustomerDialog({ onCustomerCreated, trigger }: CreateCusto
         defaultAddress: newCustomer.defaultAddress || null,
         age: newCustomer.age || null,
         weight: newCustomer.weight || null,
-        wheelchairType: newCustomer.wheelchairType || null,
-        emergencyContact: newCustomer.emergencyContact || null
+        emergencyContact: newCustomer.emergencyContact || null,
+        emergencyPhone: newCustomer.emergencyPhone || null,
+        requiresAssistant: newCustomer.requiresAssistant || false,
+        medicalNotes: newCustomer.medicalNotes || null,
+        mobilityNeeds: newCustomer.mobilityNeeds || null,
       })
 
       setOpen(false)
@@ -188,7 +190,7 @@ export function CreateCustomerDialog({ onCustomerCreated, trigger }: CreateCusto
           </div>
 
           {/* Physical info */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <Label htmlFor="cc-age" className="text-xs">Edad</Label>
               <Input
@@ -216,27 +218,6 @@ export function CreateCustomerDialog({ onCustomerCreated, trigger }: CreateCusto
                 disabled={loading}
                 className="h-8 text-sm"
               />
-            </div>
-            <div>
-              <Label htmlFor="cc-wheelchairType" className="text-xs">Tipo de Silla</Label>
-              <Select
-                value={formData.wheelchairType}
-                onValueChange={(value) => setFormData({ ...formData, wheelchairType: value })}
-                disabled={loading}
-              >
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue placeholder="Seleccionar..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="MANUAL_PLEGABLE">Manual plegable</SelectItem>
-                  <SelectItem value="MANUAL_RIGIDA">Manual rígida</SelectItem>
-                  <SelectItem value="ELECTRICA">Eléctrica / Motorizada</SelectItem>
-                  <SelectItem value="TRANSPORTE">De traslado (liviana)</SelectItem>
-                  <SelectItem value="BARIATRICA">Bariátrica</SelectItem>
-                  <SelectItem value="NEUROLOGICA">Neurológica / Postural</SelectItem>
-                  <SelectItem value="NO_TIENE">No tiene (requiere silla)</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
           </div>
 

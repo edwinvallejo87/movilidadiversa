@@ -211,10 +211,11 @@ export async function POST(request: NextRequest) {
           totalPrice += extraKmCost
         }
       } else {
-        return NextResponse.json(
-          { error: `Destination rate not found for: ${outOfCityDestination}` },
-          { status: 404 }
-        )
+        breakdown.push({
+          item: `${tripType === 'SENCILLO' ? 'Viaje sencillo' : 'Viaje doble'} a ${outOfCityDestination} (tarifa pendiente)`,
+          unitPrice: 0,
+          subtotal: 0
+        })
       }
     }
     // CASE 2: Medellin (distance-based)
@@ -238,9 +239,9 @@ export async function POST(request: NextRequest) {
         }
       })
 
+      const distanceLabel = distanceRange === 'HASTA_3KM' ? '(hasta 3km)' :
+                            distanceRange === 'DE_3_A_10KM' ? '(3-10km)' : '(mas de 10km)'
       if (rate) {
-        const distanceLabel = distanceRange === 'HASTA_3KM' ? '(hasta 3km)' :
-                              distanceRange === 'DE_3_A_10KM' ? '(3-10km)' : '(mas de 10km)'
         breakdown.push({
           item: `${tripType === 'SENCILLO' ? 'Viaje sencillo' : 'Viaje doble'} ${getEquipLabel(equipmentType)} ${distanceLabel}`,
           unitPrice: rate.price,
@@ -248,10 +249,11 @@ export async function POST(request: NextRequest) {
         })
         totalPrice += rate.price
       } else {
-        return NextResponse.json(
-          { error: `Rate not found for Medellin with distance range: ${distanceRange}` },
-          { status: 404 }
-        )
+        breakdown.push({
+          item: `${tripType === 'SENCILLO' ? 'Viaje sencillo' : 'Viaje doble'} ${getEquipLabel(equipmentType)} ${distanceLabel} (tarifa pendiente)`,
+          unitPrice: 0,
+          subtotal: 0
+        })
       }
     }
     // CASE 3: Other metropolitan zones (origin-based)
@@ -267,9 +269,8 @@ export async function POST(request: NextRequest) {
         }
       })
 
+      const originLabel = effectiveOriginType === 'DESDE_MEDELLIN' ? 'desde Medellin' : 'mismo municipio'
       if (rate) {
-        const originLabel = effectiveOriginType === 'DESDE_MEDELLIN' ? 'desde Medellin' : 'mismo municipio'
-
         breakdown.push({
           item: `${tripType === 'SENCILLO' ? 'Viaje sencillo' : 'Viaje doble'} ${getEquipLabel(equipmentType)} (${originLabel})`,
           unitPrice: rate.price,
@@ -277,10 +278,11 @@ export async function POST(request: NextRequest) {
         })
         totalPrice += rate.price
       } else {
-        return NextResponse.json(
-          { error: `Rate not found for zone: ${zone.name}` },
-          { status: 404 }
-        )
+        breakdown.push({
+          item: `${tripType === 'SENCILLO' ? 'Viaje sencillo' : 'Viaje doble'} ${getEquipLabel(equipmentType)} (${originLabel}) (tarifa pendiente)`,
+          unitPrice: 0,
+          subtotal: 0
+        })
       }
     }
 

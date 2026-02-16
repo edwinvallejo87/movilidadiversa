@@ -9,6 +9,7 @@ const CreateAdminAppointmentSchema = z.object({
   staffId: z.string().min(1).optional().nullable(),
   resourceId: z.string().min(1).optional(),
   equipmentType: z.string().min(1).optional().default('RAMPA'),
+  tripType: z.enum(['SENCILLO', 'DOBLE']).optional().default('SENCILLO'),
   scheduledAt: z.string().datetime(),
   returnAt: z.string().datetime().optional().nullable(),  // Return time for round trips
   originAddress: z.string().optional(),
@@ -65,6 +66,7 @@ export async function POST(request: NextRequest) {
 
     // Get equipment type from staff or use provided/default
     const equipmentType = staffMember?.equipmentType || appointmentData.equipmentType || 'RAMPA'
+    const tripType = appointmentData.tripType || 'SENCILLO'
 
     // Crear la cita
     const appointment = await db.appointment.create({
@@ -74,16 +76,17 @@ export async function POST(request: NextRequest) {
         staffId: appointmentData.staffId || null,
         resourceId: appointmentData.resourceId,
         equipmentType,
+        tripType,
         scheduledAt: new Date(appointmentData.scheduledAt),
         returnAt: appointmentData.returnAt ? new Date(appointmentData.returnAt) : null,
         originAddress: appointmentData.originAddress || 'Sin dirección',
         destinationAddress: appointmentData.destinationAddress || 'Sin dirección',
-        originLat: appointmentData.originLat || 0,
-        originLng: appointmentData.originLng || 0,
-        destinationLat: appointmentData.destinationLat || 0,
-        destinationLng: appointmentData.destinationLng || 0,
-        distanceKm: appointmentData.distanceKm || 0,
-        estimatedDuration: 60,  // Default duration
+        originLat: appointmentData.originLat ?? 0,
+        originLng: appointmentData.originLng ?? 0,
+        destinationLat: appointmentData.destinationLat ?? 0,
+        destinationLng: appointmentData.destinationLng ?? 0,
+        distanceKm: appointmentData.distanceKm ?? 0,
+        estimatedDuration: tripType === 'DOBLE' ? 120 : 60,
         notes: appointmentData.notes,
         status: 'CONFIRMED',
         totalAmount: appointmentData.estimatedAmount || 0,

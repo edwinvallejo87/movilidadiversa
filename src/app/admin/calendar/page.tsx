@@ -611,7 +611,8 @@ export default function CalendarPage() {
         estimatedAmount: formData.estimatedAmount,
         distanceKm: formData.distanceKm || 0,
         pricingBreakdown: currentQuote?.breakdown || undefined,
-        equipmentType
+        equipmentType,
+        tripType: formData.tripType || 'SENCILLO'
       }
 
       const response = await fetch('/api/admin/appointments', {
@@ -699,7 +700,7 @@ export default function CalendarPage() {
         originAddress: appointment.originAddress || '',
         destinationAddress: appointment.destinationAddress || '',
         zoneSlug: 'medellin', // Will be auto-detected from address
-        tripType: 'SENCILLO',
+        tripType: appointment.tripType || 'SENCILLO',
         equipmentType: appointment.equipmentType || 'RAMPA',
         originType: 'MISMO_MUNICIPIO',
         distanceKm: appointment.distanceKm || 0,
@@ -776,7 +777,8 @@ export default function CalendarPage() {
         estimatedAmount: formData.estimatedAmount,
         distanceKm: formData.distanceKm || 0,
         pricingBreakdown: currentQuote?.breakdown || undefined,
-        equipmentType
+        equipmentType,
+        tripType: formData.tripType || 'SENCILLO'
       }
 
       // Solo agregar staffId si está seleccionado
@@ -1037,26 +1039,40 @@ export default function CalendarPage() {
     }
 
     if (customer) {
-      const hasCustomerData = customer.age || customer.weight || customer.wheelchairType || customer.emergencyContact
+      const hasCustomerData = customer.age || customer.weight || customer.mobilityNeeds || customer.requiresAssistant || customer.medicalNotes || customer.emergencyContact
       if (hasCustomerData) {
         text += `\n*DATOS DEL PASAJERO:*\n`
         if (customer.age) text += `Edad: ${customer.age} anos\n`
         if (customer.weight) text += `Peso: ${customer.weight} kg\n`
-        if (customer.wheelchairType && customer.wheelchairType !== 'NO_TIENE' && customer.wheelchairType !== 'none') {
-          const wheelchairLabels: Record<string, string> = {
-            'MANUAL_PLEGABLE': 'Manual plegable',
-            'MANUAL_RIGIDA': 'Manual rigida',
-            'ELECTRICA': 'Electrica/Motorizada',
-            'TRANSPORTE': 'De traslado',
-            'BARIATRICA': 'Bariatrica',
-            'NEUROLOGICA': 'Neurologica/Postural',
-          }
-          text += `Silla: ${wheelchairLabels[customer.wheelchairType] || customer.wheelchairType}\n`
+        // Ayuda de movilidad
+        if (customer.mobilityNeeds) {
+          try {
+            const needs = typeof customer.mobilityNeeds === 'string' ? JSON.parse(customer.mobilityNeeds) : customer.mobilityNeeds
+            const mobilityLabels: Record<string, string> = { 'WHEELCHAIR': 'Silla de ruedas', 'WALKER': 'Andador', 'CRUTCHES': 'Muletas' }
+            if (Array.isArray(needs) && needs.length > 0) {
+              text += `Ayuda movilidad: ${needs.map((n: string) => mobilityLabels[n] || n).join(', ')}\n`
+            }
+          } catch { /* ignore */ }
+        }
+        if (customer.requiresAssistant) {
+          text += `*Requiere asistente*\n`
+        }
+        if (customer.medicalNotes) {
+          text += `Necesidades medicas: ${customer.medicalNotes}\n`
         }
         if (customer.emergencyContact) {
-          text += `Emergencia: ${customer.emergencyContact}\n`
+          text += `Contacto emergencia: ${customer.emergencyContact}`
+          if (customer.emergencyPhone) {
+            text += ` - Tel: ${customer.emergencyPhone}`
+          }
+          text += `\n`
         }
       }
+    }
+
+    // Notes from the appointment
+    if (selectedAppointmentDetails?.notes) {
+      text += `\n*NOTAS:*\n${selectedAppointmentDetails.notes}\n`
     }
 
     text += `\n------------------------\n`
@@ -1255,20 +1271,31 @@ export default function CalendarPage() {
                         const infoParts = []
                         if (selectedCustomer.age) infoParts.push(`Edad: ${selectedCustomer.age} años`)
                         if (selectedCustomer.weight) infoParts.push(`Peso: ${selectedCustomer.weight} kg`)
-                        if (selectedCustomer.wheelchairType) {
-                          const wheelchairLabels: Record<string, string> = {
-                            'MANUAL_PLEGABLE': 'Manual plegable',
-                            'MANUAL_RIGIDA': 'Manual rígida',
-                            'ELECTRICA': 'Eléctrica/Motorizada',
-                            'TRANSPORTE': 'De traslado',
-                            'BARIATRICA': 'Bariátrica',
-                            'NEUROLOGICA': 'Neurológica/Postural',
-                            'NO_TIENE': 'No tiene silla'
-                          }
-                          infoParts.push(`Silla: ${wheelchairLabels[selectedCustomer.wheelchairType] || selectedCustomer.wheelchairType}`)
+                        // Ayuda de movilidad
+                        if (selectedCustomer.mobilityNeeds) {
+                          try {
+                            const needs = typeof selectedCustomer.mobilityNeeds === 'string' ? JSON.parse(selectedCustomer.mobilityNeeds) : selectedCustomer.mobilityNeeds
+                            const mobilityLabels: Record<string, string> = { 'WHEELCHAIR': 'Silla de ruedas', 'WALKER': 'Andador', 'CRUTCHES': 'Muletas' }
+                            if (Array.isArray(needs) && needs.length > 0) {
+                              infoParts.push(`Movilidad: ${needs.map((n: string) => mobilityLabels[n] || n).join(', ')}`)
+                            }
+                          } catch { /* ignore */ }
                         }
+                        // Requiere asistente
+                        if (selectedCustomer.requiresAssistant) {
+                          infoParts.push('Requiere asistente')
+                        }
+                        // Necesidades médicas
+                        if (selectedCustomer.medicalNotes) {
+                          infoParts.push(`Médico: ${selectedCustomer.medicalNotes}`)
+                        }
+                        // Contacto de emergencia
                         if (selectedCustomer.emergencyContact) {
-                          infoParts.push(`Emergencia: ${selectedCustomer.emergencyContact}`)
+                          let emergencyText = `Emergencia: ${selectedCustomer.emergencyContact}`
+                          if (selectedCustomer.emergencyPhone) {
+                            emergencyText += ` (${selectedCustomer.emergencyPhone})`
+                          }
+                          infoParts.push(emergencyText)
                         }
                         if (infoParts.length > 0) {
                           autoNotes = infoParts.join(' | ')

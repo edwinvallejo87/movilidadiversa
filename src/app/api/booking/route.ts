@@ -108,6 +108,7 @@ export async function POST(request: NextRequest) {
         destinationLng: 0,
         distanceKm: 0,
         estimatedDuration: data.tripType === 'DOBLE' ? 120 : 60,
+        tripType: data.tripType,
         notes: data.notes ? `${data.tripType === 'DOBLE' ? '[VIAJE DOBLE] ' : ''}${data.notes}` : (data.tripType === 'DOBLE' ? '[VIAJE DOBLE]' : null),
         status: 'SCHEDULED',
         totalAmount: data.estimatedAmount,

@@ -129,10 +129,7 @@ export async function POST(request: NextRequest) {
         basePrice = destination.price
         zoneName = destination.name
       } else {
-        return NextResponse.json(
-          { error: 'No se encontró tarifa para destino fuera de ciudad' },
-          { status: 404 }
-        )
+        zoneName = 'Fuera de la ciudad'
       }
       breakdown.push({ item: `Ruta ${zoneName} (${tripType === 'DOBLE' ? 'Ida y vuelta' : 'Solo ida'})`, amount: basePrice })
     } else {
@@ -141,12 +138,7 @@ export async function POST(request: NextRequest) {
         where: { slug: pricingZone }
       })
 
-      if (!zone) {
-        return NextResponse.json(
-          { error: `No se encontró la zona: ${pricingZone}` },
-          { status: 404 }
-        )
-      } else {
+      if (zone) {
         // Find rate for this zone
         const originType = detectOriginType(originDetection.zone, destDetection.zone)
 
@@ -165,13 +157,10 @@ export async function POST(request: NextRequest) {
 
         if (rate) {
           basePrice = rate.price
-        } else {
-          return NextResponse.json(
-            { error: `No se encontró tarifa para la zona ${zone.name} con equipo ${equipmentType}` },
-            { status: 404 }
-          )
         }
         zoneName = zone.name
+      } else {
+        zoneName = 'Zona no configurada'
       }
       const equipLabels: Record<string, string> = { 'RAMPA': 'Rampa', 'ROBOTICA_PLEGABLE': 'Silla Robótica' }
       const equipName = equipLabels[equipmentType] || equipmentType.charAt(0).toUpperCase() + equipmentType.slice(1).toLowerCase().replace(/_/g, ' ')

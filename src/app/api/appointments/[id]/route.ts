@@ -25,6 +25,7 @@ const FullUpdateAppointmentSchema = z.object({
   estimatedAmount: z.number().optional(),
   distanceKm: z.number().optional(),
   equipmentType: z.string().min(1).optional(),
+  tripType: z.enum(['SENCILLO', 'DOBLE']).optional(),
   status: z.enum(['PENDING', 'SCHEDULED', 'CONFIRMED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional(),
   pricingBreakdown: z.array(z.object({
     item: z.string(),
@@ -179,6 +180,7 @@ export async function PUT(
     if (updateData.estimatedAmount !== undefined) dataToUpdate.totalAmount = updateData.estimatedAmount
     if (updateData.distanceKm !== undefined) dataToUpdate.distanceKm = updateData.distanceKm
     if (updateData.equipmentType) dataToUpdate.equipmentType = updateData.equipmentType
+    if (updateData.tripType) dataToUpdate.tripType = updateData.tripType
     if (updateData.status) dataToUpdate.status = updateData.status
     if (updateData.pricingBreakdown) {
       dataToUpdate.pricingSnapshot = JSON.stringify({

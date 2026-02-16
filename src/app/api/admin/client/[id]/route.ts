@@ -123,6 +123,8 @@ export async function PUT(
     if (customerData.weight !== undefined) updateData.weight = customerData.weight
     if (customerData.wheelchairType !== undefined) updateData.wheelchairType = customerData.wheelchairType || null
     if (customerData.emergencyContact !== undefined) updateData.emergencyContact = customerData.emergencyContact || null
+    if (customerData.emergencyPhone !== undefined) updateData.emergencyPhone = customerData.emergencyPhone || null
+    if (customerData.requiresAssistant !== undefined) updateData.requiresAssistant = customerData.requiresAssistant
     if (customerData.isActive !== undefined) updateData.isActive = customerData.isActive
 
     // Email - handle empty string as null

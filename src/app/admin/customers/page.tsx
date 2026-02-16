@@ -23,7 +23,6 @@ interface Customer {
   document?: string
   age?: number
   weight?: number
-  wheelchairType?: string
   defaultAddress?: string
   medicalNeeds?: string
   mobilityAid: 'WHEELCHAIR' | 'WALKER' | 'CRUTCHES' | 'NONE'
@@ -58,7 +57,6 @@ export default function CustomersPage() {
     document: '',
     age: '',
     weight: '',
-    wheelchairType: '',
     address: '',
     medicalNeeds: '',
     mobilityAid: 'NONE' as 'WHEELCHAIR' | 'WALKER' | 'CRUTCHES' | 'NONE',
@@ -128,7 +126,6 @@ export default function CustomersPage() {
       document: '',
       age: '',
       weight: '',
-      wheelchairType: '',
       address: '',
       medicalNeeds: '',
       mobilityAid: 'NONE',
@@ -190,7 +187,6 @@ export default function CustomersPage() {
       document: customer.document || '',
       age: customer.age?.toString() || '',
       weight: customer.weight?.toString() || '',
-      wheelchairType: customer.wheelchairType || '',
       address: customer.defaultAddress || '',
       medicalNeeds: customer.medicalNeeds || '',
       mobilityAid: customer.mobilityAid,
@@ -320,7 +316,7 @@ export default function CustomersPage() {
               </div>
 
               {/* Información física */}
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="age">Edad</Label>
                   <Input
@@ -344,26 +340,6 @@ export default function CustomersPage() {
                     onChange={(e) => setFormData({...formData, weight: e.target.value})}
                     placeholder="Kg"
                   />
-                </div>
-                <div>
-                  <Label htmlFor="wheelchairType">Tipo de Silla</Label>
-                  <Select
-                    value={formData.wheelchairType}
-                    onValueChange={(value) => setFormData({...formData, wheelchairType: value})}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="MANUAL_PLEGABLE">Manual plegable</SelectItem>
-                      <SelectItem value="MANUAL_RIGIDA">Manual rígida</SelectItem>
-                      <SelectItem value="ELECTRICA">Eléctrica / Motorizada</SelectItem>
-                      <SelectItem value="TRANSPORTE">De traslado (liviana)</SelectItem>
-                      <SelectItem value="BARIATRICA">Bariátrica</SelectItem>
-                      <SelectItem value="NEUROLOGICA">Neurológica / Postural</SelectItem>
-                      <SelectItem value="NO_TIENE">No tiene (requiere silla)</SelectItem>
-                    </SelectContent>
-                  </Select>
                 </div>
               </div>
 
