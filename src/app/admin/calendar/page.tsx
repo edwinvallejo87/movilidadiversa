@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { Calendar as CalendarIcon, User, Wrench, Car, AlertTriangle, ClipboardList, DollarSign, MapPin, Download, MessageCircle, Copy } from 'lucide-react'
-import { PageHeader, CreateCustomerDialog, CustomerSearch, StaffSearch } from '@/components/admin'
+import { PageHeader, CreateCustomerDialog, EditCustomerDialog, CustomerSearch, StaffSearch } from '@/components/admin'
 import { generateReceiptPDF, ReceiptData } from '@/lib/generate-receipt-pdf'
 import AddressAutocomplete from '@/components/AddressAutocomplete'
 import RouteMap from '@/components/RouteMap'
@@ -75,7 +75,9 @@ export default function CalendarPage() {
 
     // Address fields
     originAddress: '',
+    originReference: '',
     destinationAddress: '',
+    destinationReference: '',
 
     // Quote system fields
     zoneSlug: 'medellin',
@@ -102,9 +104,14 @@ export default function CalendarPage() {
   const [isCheckingAvailability, setIsCheckingAvailability] = useState(false)
   const [availabilityStatus, setAvailabilityStatus] = useState<any>(null)
 
+  // Edit customer from details modal
+  const [showEditCustomerModal, setShowEditCustomerModal] = useState(false)
+  const [editingCustomerId, setEditingCustomerId] = useState<string | null>(null)
+
   // Post-creation receipt download
   const [showReceiptModal, setShowReceiptModal] = useState(false)
   const [createdAppointmentId, setCreatedAppointmentId] = useState<string | null>(null)
+  const [createdAppointmentData, setCreatedAppointmentData] = useState<any>(null)
   const [isDownloadingReceipt, setIsDownloadingReceipt] = useState(false)
 
   // Route calculation (handled by Google Maps RouteMap component)
@@ -402,7 +409,9 @@ export default function CalendarPage() {
       notes: '',
       estimatedAmount: 0,
       originAddress: '',
+      originReference: '',
       destinationAddress: '',
+      destinationReference: '',
       zoneSlug: 'medellin',
       tripType: 'SENCILLO',
       equipmentType: 'RAMPA',
@@ -698,7 +707,9 @@ export default function CalendarPage() {
         notes: appointment.notes || '',
         estimatedAmount: appointment.totalAmount || 0,
         originAddress: appointment.originAddress || '',
+        originReference: appointment.originReference || '',
         destinationAddress: appointment.destinationAddress || '',
+        destinationReference: appointment.destinationReference || '',
         zoneSlug: 'medellin', // Will be auto-detected from address
         tripType: appointment.tripType || 'SENCILLO',
         equipmentType: appointment.equipmentType || 'RAMPA',
@@ -772,7 +783,9 @@ export default function CalendarPage() {
         scheduledAt: new Date(formData.scheduledAt).toISOString(),
         returnAt: formData.returnAt ? new Date(formData.returnAt).toISOString() : null,
         originAddress: formData.originAddress,
+        originReference: formData.originReference || null,
         destinationAddress: formData.destinationAddress,
+        destinationReference: formData.destinationReference || null,
         notes: formData.notes,
         estimatedAmount: formData.estimatedAmount,
         distanceKm: formData.distanceKm || 0,
@@ -815,6 +828,7 @@ export default function CalendarPage() {
       // Show receipt download option only for new appointments
       if (!isEditMode && result.id) {
         setCreatedAppointmentId(result.id)
+        setCreatedAppointmentData(result)
         setShowReceiptModal(true)
       }
 
@@ -945,140 +959,240 @@ export default function CalendarPage() {
 
   // Generate service order text for WhatsApp
   const generateServiceOrderText = (event: AppointmentEvent) => {
-    const scheduledDate = moment(event.start).format('dddd D [de] MMMM')
-    const scheduledTime = moment(event.start).format('h:mm A')
+    if (!selectedAppointmentDetails) return ''
 
-    // Find full customer and staff data
-    const customer = customers.find(c => c.id === event.customerId)
-    const staffMember = staff.find(s => s.id === event.staffId)
-
-    // Check if it's a round trip and has return time
-    const hasReturnTime = selectedAppointmentDetails?.returnAt
-    const returnTime = hasReturnTime ? moment(selectedAppointmentDetails.returnAt).format('h:mm A') : null
-    const returnDate = hasReturnTime ? moment(selectedAppointmentDetails.returnAt).format('dddd D [de] MMMM') : null
-
-    let text = `*SERVICIO PROGRAMADO*\n\n`
-
-    text += `Fecha: ${scheduledDate.charAt(0).toUpperCase() + scheduledDate.slice(1)}\n`
-    text += `Hora recogida: ${scheduledTime}\n`
-    if (hasReturnTime && returnTime) {
-      const sameDay = moment(event.start).isSame(moment(selectedAppointmentDetails.returnAt), 'day')
-      if (sameDay) {
-        text += `Hora regreso: ${returnTime}\n`
-      } else {
-        text += `Regreso: ${returnDate?.charAt(0).toUpperCase()}${returnDate?.slice(1)} a las ${returnTime}\n`
-      }
+    // Build an appointment-like object from event + details for reuse
+    const appointmentData = {
+      ...selectedAppointmentDetails,
+      customer: selectedAppointmentDetails.customer || customers.find((c: any) => c.id === event.customerId),
+      staff: selectedAppointmentDetails.staff || staff.find((s: any) => s.id === event.staffId),
+      equipmentType: event.equipmentType,
+      totalAmount: event.totalAmount,
+      originAddress: event.originAddress,
+      destinationAddress: event.destinationAddress,
     }
-    text += `\n`
 
-    text += `------------------------\n\n`
+    return generateOrderFromAppointment(appointmentData)
+  }
 
-    text += `*CLIENTE*\n`
-    text += `${event.customerName}\n`
-    if (customer?.phone) {
-      text += `Tel: ${customer.phone}\n`
+  const buildServiceTypeLabel = (tripType: string, equipmentType: string, zoneSlug?: string) => {
+    const trip = tripType === 'DOBLE' ? 'Doble' : 'Sencillo'
+    const equip = getEquipmentLabel(equipmentType)
+    // Try to get zone name
+    let zoneName = ''
+    if (zoneSlug) {
+      const zone = pricingZones.find(z => z.slug === zoneSlug)
+      zoneName = zone?.name || ''
     }
-    text += `\n`
+    return `${trip} ${equip}${zoneName ? ` ${zoneName}` : ''}`
+  }
 
-    text += `*RECOGER EN:*\n`
-    text += `${event.originAddress}\n\n`
+  const generateOrderFromAppointment = (appointment: any, serviceNumber?: number) => {
+    const customerData = appointment.customer
+    const tripType = appointment.tripType || 'SENCILLO'
+    const equipmentType = appointment.equipmentType || 'RAMPA'
+    const isRobotica = equipmentType === 'ROBOTICA_PLEGABLE' || equipmentType?.toLowerCase().includes('robot')
 
-    text += `*LLEVAR A:*\n`
-    text += `${event.destinationAddress}\n\n`
-
-    text += `------------------------\n\n`
-
-    text += `Vehiculo: ${getEquipmentLabel(event.equipmentType)}\n`
-
-    // Extract additional services from pricingSnapshot
-    if (selectedAppointmentDetails?.pricingSnapshot) {
+    // Detect zone from pricingSnapshot or address
+    let zoneSlug = ''
+    if (appointment.pricingSnapshot) {
       try {
-        const pricingData = typeof selectedAppointmentDetails.pricingSnapshot === 'string'
-          ? JSON.parse(selectedAppointmentDetails.pricingSnapshot)
-          : selectedAppointmentDetails.pricingSnapshot
+        const pd = typeof appointment.pricingSnapshot === 'string' ? JSON.parse(appointment.pricingSnapshot) : appointment.pricingSnapshot
+        if (pd.zoneSlug) zoneSlug = pd.zoneSlug
+      } catch { /* ignore */ }
+    }
+    if (!zoneSlug) {
+      zoneSlug = detectZoneFromAddress(appointment.originAddress) || ''
+    }
 
+    let text = ''
+
+    // Header
+    if (serviceNumber) {
+      text += `Servicio #: ${serviceNumber}\n`
+    }
+    text += `Fecha del servicio: ${moment(appointment.scheduledAt).format('DD/MM/YYYY')}\n`
+    text += `Conductor responsable: ${appointment.staff?.name || 'Sin asignar'}\n`
+    text += `Tipo de servicio: ${buildServiceTypeLabel(tripType, equipmentType, zoneSlug)}\n`
+    if (isRobotica) {
+      text += `⚠️ REQUIERE SILLA ROBÓTICA\n`
+    }
+    text += `Valor: $${(appointment.totalAmount || 0).toLocaleString()}\n`
+
+    text += `\n`
+
+    // Patient data
+    text += `Nombre del paciente: ${customerData?.name || 'Sin nombre'}\n`
+    if (customerData?.document) text += `Documento: ${customerData.document}\n`
+    if (customerData?.age) text += `Edad: ${customerData.age} años\n`
+    if (customerData?.weight) text += `Peso: ${customerData.weight} Kg\n`
+
+    text += `\n`
+
+    // Addresses
+    text += `Dirección de recogida:\n`
+    text += `${appointment.originAddress || 'Sin dirección'}\n`
+    if (appointment.originReference) {
+      text += `${appointment.originReference}\n`
+    }
+
+    text += `\n`
+
+    text += `Dirección de destino:\n`
+    text += `${appointment.destinationAddress || 'Sin dirección'}\n`
+    if (appointment.destinationReference) {
+      text += `${appointment.destinationReference}\n`
+    }
+
+    text += `\n`
+
+    // Times
+    text += `Hora de recogida: ${moment(appointment.scheduledAt).format('h:mm A')}\n`
+    if (tripType === 'DOBLE' && appointment.returnAt) {
+      text += `Hora de retorno: ${moment(appointment.returnAt).format('h:mm A')}\n`
+    }
+
+    text += `\n`
+
+    // Responsible / Emergency contact
+    if (customerData?.emergencyContact) {
+      text += `Responsable del servicio: ${customerData.emergencyContact}\n`
+      if (customerData.emergencyPhone) {
+        text += `Teléfono responsable: ${customerData.emergencyPhone}\n`
+      }
+    } else {
+      text += `Responsable del servicio: ${customerData?.name || ''}\n`
+      if (customerData?.phone) {
+        text += `Teléfono responsable: ${customerData.phone}\n`
+      }
+    }
+
+    // Observations
+    const observations: string[] = []
+
+    // Wheelchair type
+    if (customerData?.wheelchairType) {
+      observations.push(customerData.wheelchairType)
+    }
+
+    // Mobility needs
+    if (customerData?.mobilityNeeds) {
+      try {
+        const needs = typeof customerData.mobilityNeeds === 'string' ? JSON.parse(customerData.mobilityNeeds) : customerData.mobilityNeeds
+        const mobilityLabels: Record<string, string> = { 'WHEELCHAIR': 'Silla de ruedas', 'WALKER': 'Andador', 'CRUTCHES': 'Muletas' }
+        if (Array.isArray(needs) && needs.length > 0) {
+          observations.push(needs.map((n: string) => mobilityLabels[n] || n).join(', '))
+        }
+      } catch { /* ignore */ }
+    }
+
+    if (customerData?.requiresAssistant) {
+      observations.push('Requiere asistente')
+    }
+
+    if (customerData?.medicalNotes) {
+      observations.push(customerData.medicalNotes)
+    }
+
+    // Additional services from pricingSnapshot
+    if (appointment.pricingSnapshot) {
+      try {
+        const pricingData = typeof appointment.pricingSnapshot === 'string' ? JSON.parse(appointment.pricingSnapshot) : appointment.pricingSnapshot
         if (pricingData.breakdown && Array.isArray(pricingData.breakdown)) {
-          // Items to exclude (base rates, km charges, surcharges)
           const excludePatterns = [
-            /viaje.*sencillo/i,
-            /viaje.*doble/i,
-            /viaje.*redondo/i,
-            /tarifa.*base/i,
-            /kilometro/i,
-            /km.*adicional/i,
-            /recargo.*nocturno/i,
-            /recargo.*dominical/i,
-            /recargo.*festivo/i
+            /viaje.*sencillo/i, /viaje.*doble/i, /viaje.*redondo/i,
+            /tarifa.*base/i, /kilometro/i, /km.*adicional/i,
+            /recargo.*nocturno/i, /recargo.*dominical/i, /recargo.*festivo/i
           ]
-
-          const additionalServices = pricingData.breakdown.filter((item: any) => {
-            // If it has type 'additional_service', include it
-            if (item.type === 'additional_service') return true
-            // If it has a code that matches our additional services list
-            if (item.code && additionalServicesList.some(s => s.code === item.code)) return true
-            // If the name matches an additional service
-            if (additionalServicesList.some(s => s.name === item.item)) return true
-            // Exclude known base rate / surcharge patterns
-            if (excludePatterns.some(pattern => pattern.test(item.item))) return false
-            // Include items that look like additional services (silla robotica, espera, etc)
-            if (/silla.*robot|espera|acompan|piso/i.test(item.item)) return true
-            return false
-          })
-
-          if (additionalServices.length > 0) {
-            text += `\n*SERVICIOS ADICIONALES:*\n`
-            additionalServices.forEach((svc: any) => {
-              const qty = svc.quantity && svc.quantity > 1 ? ` x${svc.quantity}` : ''
-              text += `- ${svc.item}${qty}\n`
-            })
-          }
-        }
-      } catch {
-        // Ignore parsing errors
-      }
-    }
-
-    if (customer) {
-      const hasCustomerData = customer.age || customer.weight || customer.mobilityNeeds || customer.requiresAssistant || customer.medicalNotes || customer.emergencyContact
-      if (hasCustomerData) {
-        text += `\n*DATOS DEL PASAJERO:*\n`
-        if (customer.age) text += `Edad: ${customer.age} anos\n`
-        if (customer.weight) text += `Peso: ${customer.weight} kg\n`
-        // Ayuda de movilidad
-        if (customer.mobilityNeeds) {
-          try {
-            const needs = typeof customer.mobilityNeeds === 'string' ? JSON.parse(customer.mobilityNeeds) : customer.mobilityNeeds
-            const mobilityLabels: Record<string, string> = { 'WHEELCHAIR': 'Silla de ruedas', 'WALKER': 'Andador', 'CRUTCHES': 'Muletas' }
-            if (Array.isArray(needs) && needs.length > 0) {
-              text += `Ayuda movilidad: ${needs.map((n: string) => mobilityLabels[n] || n).join(', ')}\n`
+          pricingData.breakdown.forEach((item: any) => {
+            const isAdditional = item.type === 'additional_service' ||
+              (item.code && additionalServicesList.some(s => s.code === item.code)) ||
+              additionalServicesList.some(s => s.name === item.item) ||
+              /silla.*robot|espera|acompan|piso/i.test(item.item)
+            const isExcluded = excludePatterns.some(p => p.test(item.item))
+            if (isAdditional && !isExcluded) {
+              const qty = item.quantity && item.quantity > 1 ? ` x${item.quantity}` : ''
+              observations.push(`${item.item}${qty}`)
             }
-          } catch { /* ignore */ }
+          })
         }
-        if (customer.requiresAssistant) {
-          text += `*Requiere asistente*\n`
-        }
-        if (customer.medicalNotes) {
-          text += `Necesidades medicas: ${customer.medicalNotes}\n`
-        }
-        if (customer.emergencyContact) {
-          text += `Contacto emergencia: ${customer.emergencyContact}`
-          if (customer.emergencyPhone) {
-            text += ` - Tel: ${customer.emergencyPhone}`
-          }
-          text += `\n`
-        }
-      }
+      } catch { /* ignore */ }
     }
 
-    // Notes from the appointment
-    if (selectedAppointmentDetails?.notes) {
-      text += `\n*NOTAS:*\n${selectedAppointmentDetails.notes}\n`
+    if (appointment.notes) {
+      observations.push(appointment.notes)
     }
 
-    text += `\n------------------------\n`
-    text += `Confirmar recibido`
+    if (observations.length > 0) {
+      text += `\nObservaciones:\n`
+      text += observations.join('\n')
+      text += `\n`
+    }
 
     return text
+  }
+
+  const handleCopyCreatedOrder = async () => {
+    if (!createdAppointmentId) return
+
+    try {
+      // Always fetch full appointment data with all relations
+      const response = await fetch(`/api/appointments/${createdAppointmentId}`)
+      if (!response.ok) throw new Error('Error al cargar cita')
+      const appointment = await response.json()
+      setCreatedAppointmentData(appointment)
+
+      const text = generateOrderFromAppointment(appointment)
+      await navigator.clipboard.writeText(text)
+      toast.success('Orden copiada al portapapeles')
+    } catch {
+      toast.error('No se pudo copiar la orden')
+    }
+  }
+
+  const handleCopyDayOrders = async () => {
+    // Get the date of the created appointment or current view date
+    const targetDate = createdAppointmentData?.scheduledAt
+      ? moment(createdAppointmentData.scheduledAt)
+      : moment(date)
+
+    // Filter events for that day, sorted by start time
+    const dayEvents = events
+      .filter(ev => moment(ev.start).isSame(targetDate, 'day'))
+      .sort((a, b) => new Date(a.start!).getTime() - new Date(b.start!).getTime())
+
+    if (dayEvents.length === 0) {
+      toast.error('No hay servicios programados para este día')
+      return
+    }
+
+    try {
+      // Fetch full data for all day appointments
+      const appointmentPromises = dayEvents.map(ev =>
+        fetch(`/api/appointments/${ev.appointmentId}`).then(r => r.ok ? r.json() : null)
+      )
+      const appointments = (await Promise.all(appointmentPromises)).filter(Boolean)
+
+      // Sort by scheduledAt
+      appointments.sort((a: any, b: any) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
+
+      // Generate text for all, numbered
+      const header = `📋 SERVICIOS DEL ${targetDate.format('DD/MM/YYYY').toUpperCase()}\nTotal: ${appointments.length} servicio(s)\n\n`
+      const separator = `${'═'.repeat(30)}\n\n`
+
+      let fullText = header
+      appointments.forEach((apt: any, idx: number) => {
+        fullText += generateOrderFromAppointment(apt, idx + 1)
+        if (idx < appointments.length - 1) {
+          fullText += `\n${separator}`
+        }
+      })
+
+      await navigator.clipboard.writeText(fullText)
+      toast.success(`${appointments.length} servicio(s) del día copiados`)
+    } catch {
+      toast.error('Error al copiar servicios del día')
+    }
   }
 
   const handleCopyServiceOrder = async () => {
@@ -1395,6 +1509,12 @@ export default function CalendarPage() {
                       placeholder="Escribe para buscar dirección..."
                       required
                     />
+                    <Input
+                      value={formData.originReference}
+                      onChange={(e) => setFormData(prev => ({...prev, originReference: e.target.value}))}
+                      placeholder="Referencia: edificio, torre, apto, portería..."
+                      className="mt-1.5 h-7 text-xs text-gray-600 bg-white"
+                    />
                   </div>
 
                   <div>
@@ -1413,6 +1533,12 @@ export default function CalendarPage() {
                       }}
                       placeholder="Escribe para buscar dirección..."
                       required
+                    />
+                    <Input
+                      value={formData.destinationReference}
+                      onChange={(e) => setFormData(prev => ({...prev, destinationReference: e.target.value}))}
+                      placeholder="Referencia: edificio, torre, apto, portería..."
+                      className="mt-1.5 h-7 text-xs text-gray-600 bg-white"
                     />
                   </div>
                 </div>
@@ -1793,6 +1919,17 @@ export default function CalendarPage() {
                 <div className="flex items-center gap-3">
                   <User className="w-4 h-4 text-gray-400" />
                   <span className="text-sm font-medium text-gray-900">{selectedEvent.customerName}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-[10px] text-blue-600 hover:text-blue-800 h-5 px-1.5"
+                    onClick={() => {
+                      setEditingCustomerId(selectedEvent.customerId)
+                      setShowEditCustomerModal(true)
+                    }}
+                  >
+                    Editar Cliente
+                  </Button>
                 </div>
                 <span className="text-sm font-semibold text-gray-900">${selectedEvent.totalAmount.toLocaleString()}</span>
               </div>
@@ -1808,10 +1945,16 @@ export default function CalendarPage() {
                   <div>
                     <p className="text-[10px] text-gray-400 uppercase">Origen</p>
                     <p className="text-sm text-gray-900">{selectedEvent.originAddress || 'No especificado'}</p>
+                    {selectedAppointmentDetails?.originReference && (
+                      <p className="text-xs text-gray-500 italic">Ref: {selectedAppointmentDetails.originReference}</p>
+                    )}
                   </div>
                   <div>
                     <p className="text-[10px] text-gray-400 uppercase">Destino</p>
                     <p className="text-sm text-gray-900">{selectedEvent.destinationAddress || 'No especificado'}</p>
+                    {selectedAppointmentDetails?.destinationReference && (
+                      <p className="text-xs text-gray-500 italic">Ref: {selectedAppointmentDetails.destinationReference}</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1914,12 +2057,29 @@ export default function CalendarPage() {
 
           <div className="flex flex-col gap-3 pt-2">
             <Button
+              onClick={handleCopyCreatedOrder}
+              variant="outline"
+              className="w-full"
+            >
+              <Copy className="w-4 h-4 mr-2" />
+              Copiar Orden de Servicio
+            </Button>
+            <Button
+              onClick={handleCopyDayOrders}
+              variant="outline"
+              className="w-full"
+            >
+              <ClipboardList className="w-4 h-4 mr-2" />
+              Copiar Todos los Servicios del Día
+            </Button>
+            <Button
               onClick={async () => {
                 if (createdAppointmentId) {
                   await handleDownloadReceipt(createdAppointmentId)
                 }
                 setShowReceiptModal(false)
                 setCreatedAppointmentId(null)
+                setCreatedAppointmentData(null)
               }}
               disabled={isDownloadingReceipt}
               className="w-full"
@@ -1933,14 +2093,37 @@ export default function CalendarPage() {
               onClick={() => {
                 setShowReceiptModal(false)
                 setCreatedAppointmentId(null)
+                setCreatedAppointmentData(null)
               }}
               className="text-gray-500"
             >
-              Descargar mas tarde
+              Cerrar
             </Button>
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Modal de edición de cliente desde detalles de cita */}
+      <EditCustomerDialog
+        customerId={editingCustomerId}
+        open={showEditCustomerModal}
+        onOpenChange={(open) => {
+          setShowEditCustomerModal(open)
+          if (!open) setEditingCustomerId(null)
+        }}
+        onCustomerUpdated={(updatedCustomer) => {
+          // Update the event name in the calendar
+          if (selectedEvent) {
+            setSelectedEvent({ ...selectedEvent, customerName: updatedCustomer.name })
+            setEvents(prev => prev.map(ev =>
+              ev.customerId === updatedCustomer.id
+                ? { ...ev, customerName: updatedCustomer.name, title: `${updatedCustomer.name} - ${getEquipmentLabel(ev.equipmentType)}` }
+                : ev
+            ))
+          }
+          toast.success('Datos del cliente actualizados')
+        }}
+      />
     </div>
   )
 }

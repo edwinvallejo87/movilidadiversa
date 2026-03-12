@@ -13,7 +13,9 @@ const CreateAdminAppointmentSchema = z.object({
   scheduledAt: z.string().datetime(),
   returnAt: z.string().datetime().optional().nullable(),  // Return time for round trips
   originAddress: z.string().optional(),
+  originReference: z.string().optional().nullable(),
   destinationAddress: z.string().optional(),
+  destinationReference: z.string().optional().nullable(),
   originLat: z.number().optional(),
   originLng: z.number().optional(),
   destinationLat: z.number().optional(),
@@ -80,7 +82,9 @@ export async function POST(request: NextRequest) {
         scheduledAt: new Date(appointmentData.scheduledAt),
         returnAt: appointmentData.returnAt ? new Date(appointmentData.returnAt) : null,
         originAddress: appointmentData.originAddress || 'Sin dirección',
+        originReference: appointmentData.originReference || null,
         destinationAddress: appointmentData.destinationAddress || 'Sin dirección',
+        destinationReference: appointmentData.destinationReference || null,
         originLat: appointmentData.originLat ?? 0,
         originLng: appointmentData.originLng ?? 0,
         destinationLat: appointmentData.destinationLat ?? 0,
@@ -97,14 +101,7 @@ export async function POST(request: NextRequest) {
         })
       },
       include: {
-        customer: {
-          select: {
-            id: true,
-            name: true,
-            phone: true,
-            email: true
-          }
-        },
+        customer: true,
         service: {
           select: {
             id: true,
@@ -113,14 +110,7 @@ export async function POST(request: NextRequest) {
             durationMinutes: true
           }
         },
-        staff: {
-          select: {
-            id: true,
-            name: true,
-            color: true,
-            equipmentType: true
-          }
-        },
+        staff: true,
         resource: {
           select: {
             id: true,

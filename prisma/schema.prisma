@@ -305,9 +305,11 @@ model Appointment {
   originAddress         String
   originLat             Float
   originLng             Float
+  originReference       String?           // Puntos de referencia del origen
   destinationAddress    String
   destinationLat        Float
   destinationLng        Float
+  destinationReference  String?           // Puntos de referencia del destino
 
   // Scheduling
   scheduledAt           DateTime
