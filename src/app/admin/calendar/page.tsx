@@ -99,6 +99,8 @@ export default function CalendarPage() {
   const [currentQuote, setCurrentQuote] = useState<any>(null)
   const [showQuoteBreakdown, setShowQuoteBreakdown] = useState(false)
   const [rateNotFoundError, setRateNotFoundError] = useState<string | null>(null)
+  const [priceOverride, setPriceOverride] = useState(false)
+  const [calculatedAmount, setCalculatedAmount] = useState(0)
   
   // Availability checking
   const [isCheckingAvailability, setIsCheckingAvailability] = useState(false)
@@ -431,6 +433,8 @@ export default function CalendarPage() {
     setEstimatedDuration(null)
     setOriginCoords(null)
     setDestinationCoords(null)
+    setPriceOverride(false)
+    setCalculatedAmount(0)
   }
 
   const checkAvailability = async () => {
@@ -478,7 +482,8 @@ export default function CalendarPage() {
     // Check if we have the minimum required data
     if (!formData.zoneSlug || !formData.tripType || !formData.equipmentType) {
       setCurrentQuote(null)
-      setFormData(prev => ({...prev, estimatedAmount: 0}))
+      setCalculatedAmount(0)
+      if (!priceOverride) setFormData(prev => ({...prev, estimatedAmount: 0}))
       setRateNotFoundError(null)
       return
     }
@@ -486,7 +491,8 @@ export default function CalendarPage() {
     // For out-of-city zone, destination is required
     if (formData.zoneSlug === 'fuera-ciudad' && !formData.outOfCityDestination) {
       setCurrentQuote(null)
-      setFormData(prev => ({...prev, estimatedAmount: 0}))
+      setCalculatedAmount(0)
+      if (!priceOverride) setFormData(prev => ({...prev, estimatedAmount: 0}))
       setShowQuoteBreakdown(false)
       setRateNotFoundError(null)
       return
@@ -527,24 +533,29 @@ export default function CalendarPage() {
       if (response.ok) {
         const quote = await response.json()
         setCurrentQuote(quote)
-        setFormData(prev => ({
-          ...prev,
-          estimatedAmount: quote.totalPrice
-        }))
+        setCalculatedAmount(quote.totalPrice)
+        if (!priceOverride) {
+          setFormData(prev => ({
+            ...prev,
+            estimatedAmount: quote.totalPrice
+          }))
+        }
         setShowQuoteBreakdown(true)
         setRateNotFoundError(null)
       } else {
         // Rate not found for this combination
         const errorData = await response.json().catch(() => ({}))
         setCurrentQuote(null)
-        setFormData(prev => ({...prev, estimatedAmount: 0}))
+        setCalculatedAmount(0)
+        if (!priceOverride) setFormData(prev => ({...prev, estimatedAmount: 0}))
         setShowQuoteBreakdown(false)
         setRateNotFoundError(errorData.error || 'Tarifa no encontrada para esta combinación')
       }
     } catch (error) {
       // Network or other error
       setCurrentQuote(null)
-      setFormData(prev => ({...prev, estimatedAmount: 0}))
+      setCalculatedAmount(0)
+      if (!priceOverride) setFormData(prev => ({...prev, estimatedAmount: 0}))
       setShowQuoteBreakdown(false)
       setRateNotFoundError('Error al calcular la tarifa')
     }
@@ -645,7 +656,9 @@ export default function CalendarPage() {
   }
 
   // Handle opening edit mode - loads data into create form
-  const handleOpenEdit = async () => {
+  // Load appointment data into the form. If `duplicate` is true, clears
+  // date/return fields and starts a new appointment instead of editing.
+  const loadAppointmentIntoForm = async (duplicate: boolean) => {
     if (!selectedEvent) return
 
     try {
@@ -702,8 +715,8 @@ export default function CalendarPage() {
       setFormData({
         customerId: appointment.customerId || '',
         staffId: appointment.staffId || '',
-        scheduledAt: moment(appointment.scheduledAt).format('YYYY-MM-DDTHH:mm'),
-        returnAt: appointment.returnAt ? moment(appointment.returnAt).format('YYYY-MM-DDTHH:mm') : '',
+        scheduledAt: duplicate ? '' : moment(appointment.scheduledAt).format('YYYY-MM-DDTHH:mm'),
+        returnAt: duplicate ? '' : (appointment.returnAt ? moment(appointment.returnAt).format('YYYY-MM-DDTHH:mm') : ''),
         notes: appointment.notes || '',
         estimatedAmount: appointment.totalAmount || 0,
         originAddress: appointment.originAddress || '',
@@ -722,14 +735,29 @@ export default function CalendarPage() {
         isHolidayOrSunday: false
       })
 
-      setEditingAppointmentId(selectedEvent.appointmentId)
-      setIsEditMode(true)
+      if (duplicate) {
+        setEditingAppointmentId(null)
+        setIsEditMode(false)
+      } else {
+        setEditingAppointmentId(selectedEvent.appointmentId)
+        setIsEditMode(true)
+      }
+      // Preserve the saved price; user can click "Restaurar tarifa calculada" to recompute
+      setPriceOverride(true)
+      setCalculatedAmount(0)
       setShowDetailsModal(false)
       setShowCreateModal(true)
+
+      if (duplicate) {
+        toast.info('Cita duplicada. Modifica la fecha y guarda para crear el nuevo servicio.')
+      }
     } catch (error) {
       toast.error('Error al cargar datos de la cita')
     }
   }
+
+  const handleOpenEdit = () => loadAppointmentIntoForm(false)
+  const handleDuplicate = () => loadAppointmentIntoForm(true)
 
   // Handle new customer created from dialog
   const handleCustomerCreated = (newCustomer: { id: string; name: string; phone: string; defaultAddress?: string | null; [key: string]: any }) => {
@@ -1787,9 +1815,39 @@ export default function CalendarPage() {
                   )) : (
                     <div className="text-xs text-gray-500">No disponible</div>
                   )}
-                  <div className="border-t border-gray-200 pt-1.5 mt-1.5 flex justify-between items-center">
-                    <span className="text-xs font-medium text-gray-700">Total</span>
-                    <span className="text-sm font-semibold text-gray-900">${(currentQuote?.totalPrice || 0).toLocaleString()}</span>
+                  <div className="border-t border-gray-200 pt-1.5 mt-1.5 flex justify-between items-center gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-gray-700">Total</span>
+                      {priceOverride && calculatedAmount > 0 && calculatedAmount !== formData.estimatedAmount && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPriceOverride(false)
+                            setFormData(prev => ({ ...prev, estimatedAmount: calculatedAmount }))
+                          }}
+                          className="text-[10px] text-blue-600 hover:text-blue-800 underline"
+                          title={`Calculado: $${calculatedAmount.toLocaleString()}`}
+                        >
+                          Restaurar (${calculatedAmount.toLocaleString()})
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-sm font-semibold text-gray-900">$</span>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="500"
+                        value={formData.estimatedAmount || ''}
+                        onChange={(e) => {
+                          const raw = e.target.value
+                          const value = raw === '' ? 0 : parseFloat(raw) || 0
+                          setPriceOverride(true)
+                          setFormData(prev => ({ ...prev, estimatedAmount: value }))
+                        }}
+                        className="w-24 h-7 text-right text-sm font-semibold"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2033,6 +2091,10 @@ export default function CalendarPage() {
                 <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
                   <Button variant="ghost" size="sm" onClick={() => { setShowDetailsModal(false); setSelectedAppointmentDetails(null) }}>
                     Cerrar
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleDuplicate}>
+                    <Copy className="w-3.5 h-3.5 mr-1.5" />
+                    Duplicar
                   </Button>
                   <Button size="sm" onClick={handleOpenEdit}>
                     Editar
