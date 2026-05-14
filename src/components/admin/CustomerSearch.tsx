@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { Input } from '@/components/ui/input'
-import { Search, User, X, ChevronDown } from 'lucide-react'
+import { Search, User, X, ChevronDown, Loader2 } from 'lucide-react'
 
 interface Customer {
   id: string
@@ -10,35 +10,64 @@ interface Customer {
   phone: string
   document?: string | null
   email?: string | null
+  [key: string]: any
 }
 
 interface CustomerSearchProps {
-  customers: Customer[]
+  customers?: Customer[]
   value: string
-  onChange: (customerId: string) => void
+  onChange: (customerId: string, customer?: Customer) => void
   placeholder?: string
 }
 
-export function CustomerSearch({ customers, value, onChange, placeholder = 'Buscar por nombre o cedula...' }: CustomerSearchProps) {
+export function CustomerSearch({ customers = [], value, onChange, placeholder = 'Buscar por nombre o cedula...' }: CustomerSearchProps) {
   const [search, setSearch] = useState('')
   const [isOpen, setIsOpen] = useState(false)
   const [highlightedIndex, setHighlightedIndex] = useState(0)
+  const [results, setResults] = useState<Customer[]>([])
+  const [loading, setLoading] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Find selected customer
-  const selectedCustomer = customers.find(c => c.id === value)
+  // Find selected customer (results cache first, then prop fallback)
+  const selectedCustomer = value
+    ? results.find(c => c.id === value) || customers.find(c => c.id === value)
+    : undefined
 
-  // Filter customers based on search
-  const filteredCustomers = search.trim()
-    ? customers.filter(customer => {
-        const searchLower = search.toLowerCase().trim()
-        const nameMatch = customer.name.toLowerCase().includes(searchLower)
-        const phoneMatch = customer.phone.includes(searchLower)
-        const documentMatch = customer.document?.toLowerCase().includes(searchLower)
-        return nameMatch || phoneMatch || documentMatch
-      })
-    : customers
+  // Debounced server-side search
+  useEffect(() => {
+    if (!isOpen) return
+
+    const query = search.trim()
+    if (!query) {
+      setResults([])
+      setLoading(false)
+      return
+    }
+
+    setLoading(true)
+    const controller = new AbortController()
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/admin/clients?search=${encodeURIComponent(query)}&limit=20`,
+          { signal: controller.signal }
+        )
+        if (!res.ok) throw new Error('search failed')
+        const data = await res.json()
+        setResults(Array.isArray(data) ? data : data.customers || [])
+      } catch (err: any) {
+        if (err.name !== 'AbortError') setResults([])
+      } finally {
+        setLoading(false)
+      }
+    }, 250)
+
+    return () => {
+      controller.abort()
+      clearTimeout(timer)
+    }
+  }, [search, isOpen])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -46,16 +75,17 @@ export function CustomerSearch({ customers, value, onChange, placeholder = 'Busc
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setIsOpen(false)
         setSearch('')
+        setResults([])
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // Reset highlighted index when filtered results change
+  // Reset highlighted index when results change
   useEffect(() => {
     setHighlightedIndex(0)
-  }, [filteredCustomers.length])
+  }, [results.length])
 
   // Handle keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -71,7 +101,7 @@ export function CustomerSearch({ customers, value, onChange, placeholder = 'Busc
       case 'ArrowDown':
         e.preventDefault()
         setHighlightedIndex(prev =>
-          prev < filteredCustomers.length - 1 ? prev + 1 : prev
+          prev < results.length - 1 ? prev + 1 : prev
         )
         break
       case 'ArrowUp':
@@ -80,37 +110,42 @@ export function CustomerSearch({ customers, value, onChange, placeholder = 'Busc
         break
       case 'Enter':
         e.preventDefault()
-        if (filteredCustomers[highlightedIndex]) {
-          handleSelectCustomer(filteredCustomers[highlightedIndex])
+        if (results[highlightedIndex]) {
+          handleSelectCustomer(results[highlightedIndex])
         }
         break
       case 'Escape':
         setIsOpen(false)
         setSearch('')
+        setResults([])
         break
       case 'Tab':
         setIsOpen(false)
         setSearch('')
+        setResults([])
         break
     }
   }
 
   const handleSelectCustomer = (customer: Customer) => {
-    onChange(customer.id)
+    onChange(customer.id, customer)
     setSearch('')
+    setResults([])
     setIsOpen(false)
   }
 
   const handleClear = (e: React.MouseEvent) => {
     e.stopPropagation()
-    onChange('')
+    onChange('', undefined)
     setSearch('')
+    setResults([])
   }
 
   const toggleDropdown = () => {
     if (isOpen) {
       setIsOpen(false)
       setSearch('')
+      setResults([])
     } else {
       setIsOpen(true)
       setTimeout(() => inputRef.current?.focus(), 10)
@@ -161,16 +196,27 @@ export function CustomerSearch({ customers, value, onChange, placeholder = 'Busc
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={placeholder}
-                className="pl-9 h-9"
+                className="pl-9 pr-9 h-9"
                 autoFocus
               />
+              {loading && (
+                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 animate-spin" />
+              )}
             </div>
           </div>
 
           {/* Results list */}
           <div className="max-h-48 overflow-auto">
-            {filteredCustomers.length > 0 ? (
-              filteredCustomers.map((customer, index) => (
+            {!search.trim() ? (
+              <div className="px-3 py-4 text-center text-sm text-gray-500">
+                Escribe para buscar clientes
+              </div>
+            ) : loading && results.length === 0 ? (
+              <div className="px-3 py-4 text-center text-sm text-gray-500">
+                Buscando...
+              </div>
+            ) : results.length > 0 ? (
+              results.map((customer, index) => (
                 <div
                   key={customer.id}
                   className={`px-3 py-2 cursor-pointer flex items-center gap-3 ${
@@ -193,7 +239,7 @@ export function CustomerSearch({ customers, value, onChange, placeholder = 'Busc
               ))
             ) : (
               <div className="px-3 py-4 text-center text-sm text-gray-500">
-                {search ? `No se encontraron clientes para "${search}"` : 'No hay clientes disponibles'}
+                No se encontraron clientes para "{search}"
               </div>
             )}
           </div>

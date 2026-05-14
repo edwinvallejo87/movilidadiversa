@@ -1376,8 +1376,13 @@ export default function CalendarPage() {
                   <CustomerSearch
                     customers={customers}
                     value={formData.customerId}
-                    onChange={(value) => {
-                      const selectedCustomer = customers.find(c => c.id === value)
+                    onChange={(value, customerFromSearch) => {
+                      const selectedCustomer = customerFromSearch || customers.find(c => c.id === value)
+
+                      // Keep the customers cache in sync so the selection persists across re-opens
+                      if (selectedCustomer && !customers.find(c => c.id === selectedCustomer.id)) {
+                        setCustomers([...customers, selectedCustomer])
+                      }
 
                       // Construir notas con datos del cliente
                       let autoNotes = ''
