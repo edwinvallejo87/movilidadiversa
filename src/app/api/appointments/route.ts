@@ -78,6 +78,10 @@ export async function GET(request: NextRequest) {
       return {
         id: apt.id,
         scheduledAt: apt.scheduledAt,
+        returnAt: apt.returnAt,
+        travelMinutes: apt.travelMinutes,
+        returnTravelMinutes: apt.returnTravelMinutes,
+        tripType: apt.tripType,
         estimatedDuration: apt.estimatedDuration,
         status: apt.status,
         totalAmount: apt.totalAmount,

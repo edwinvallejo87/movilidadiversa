@@ -12,7 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
-import { Calendar as CalendarIcon, User, Wrench, Car, AlertTriangle, ClipboardList, DollarSign, MapPin, Download, MessageCircle, Copy } from 'lucide-react'
+import { Calendar as CalendarIcon, User, Wrench, Car, AlertTriangle, ClipboardList, DollarSign, MapPin, Download, MessageCircle, Copy, Check } from 'lucide-react'
+import { TimeGridEventCard, CompactEventCard, getEventCardStyle, UNASSIGNED_COLOR, HOUR_HEIGHT_PX } from '@/components/admin/CalendarEventCard'
 import { PageHeader, CreateCustomerDialog, EditCustomerDialog, CustomerSearch, StaffSearch } from '@/components/admin'
 import { generateReceiptPDF, ReceiptData } from '@/lib/generate-receipt-pdf'
 import AddressAutocomplete from '@/components/AddressAutocomplete'
@@ -30,12 +31,17 @@ interface AppointmentEvent extends Event {
   staffId?: string
   status: string
   equipmentType: string
+  equipmentLabel: string
   customerName: string
   staffName?: string
   staffColor?: string
   totalAmount: number
   originAddress: string
   destinationAddress: string
+  returnAt?: Date | null
+  blockStart: Date      // start minus vehicle travel time; what the calendar draws
+  travelMinutes: number
+  travelStripPx: number
 }
 
 const EQUIPMENT_LABELS: Record<string, string> = {
@@ -46,6 +52,11 @@ const EQUIPMENT_LABELS: Record<string, string> = {
 function getEquipmentLabel(type: string): string {
   return EQUIPMENT_LABELS[type] || type.charAt(0).toUpperCase() + type.slice(1).toLowerCase().replace(/_/g, ' ')
 }
+
+// Default vehicle travel time (minutes) pre-filled on new appointments
+const DEFAULT_TRAVEL_MINUTES = 30
+// First hour shown in the week/day grid
+const DAY_START_HOUR = 6
 
 export default function CalendarPage() {
   const [events, setEvents] = useState<AppointmentEvent[]>([])
@@ -70,6 +81,8 @@ export default function CalendarPage() {
     staffId: '',
     scheduledAt: '',
     returnAt: '',  // Return pickup time for round trips
+    travelMinutes: DEFAULT_TRAVEL_MINUTES,        // Vehicle travel time before the pickup
+    returnTravelMinutes: DEFAULT_TRAVEL_MINUTES,  // Vehicle travel time before the return pickup
     notes: '',
     estimatedAmount: 0,
 
@@ -320,22 +333,35 @@ export default function CalendarPage() {
           title += ` (${apt.staff.name})`
         }
 
+        // The calendar block starts earlier by the vehicle travel time (clamped to the first visible hour)
+        const start = new Date(apt.scheduledAt)
+        const travelMinutes = apt.travelMinutes || 0
+        const dayStart = moment(start).startOf('day').hour(DAY_START_HOUR).toDate()
+        const rawBlockStart = new Date(start.getTime() - travelMinutes * 60000)
+        const blockStart = start > dayStart && rawBlockStart < dayStart ? dayStart : rawBlockStart
+        const travelStripPx = Math.round(((start.getTime() - blockStart.getTime()) / 3600000) * HOUR_HEIGHT_PX)
+
         return {
           id: apt.id,
           appointmentId: apt.id,
           title,
-          start: new Date(apt.scheduledAt),
+          blockStart,
+          travelMinutes,
+          travelStripPx,
+          start,
           end: new Date(new Date(apt.scheduledAt).getTime() + (apt.estimatedDuration || 60) * 60000),
           customerId: apt.customerId,
           staffId: apt.staffId,
           status: apt.status,
           equipmentType,
+          equipmentLabel,
           customerName: apt.customer?.name || 'Sin cliente',
           staffName: apt.staff?.name || 'Sin asignar',
-          staffColor: apt.staff?.color || '#3B82F6',
+          staffColor: apt.staff?.color || undefined,
           totalAmount: apt.totalAmount,
           originAddress: apt.originAddress || '',
-          destinationAddress: apt.destinationAddress || ''
+          destinationAddress: apt.destinationAddress || '',
+          returnAt: apt.tripType === 'DOBLE' && apt.returnAt ? new Date(apt.returnAt) : null
         }
       })
 
@@ -349,33 +375,9 @@ export default function CalendarPage() {
     }
   }
 
-  const eventStyleGetter = (event: AppointmentEvent) => {
-    // Use staff color for the event background
-    let backgroundColor = event.staffColor || '#3B82F6'
-    let opacity = 1
-
-    // Adjust based on simplified status
-    if (event.status === 'CANCELLED') {
-      backgroundColor = '#EF4444' // red
-      opacity = 0.5
-    } else if (event.status === 'COMPLETED') {
-      backgroundColor = '#22C55E' // green
-      opacity = 0.8
-    }
-
-    return {
-      style: {
-        backgroundColor,
-        border: 'none',
-        borderRadius: '3px',
-        padding: '2px 6px',
-        fontSize: '11px',
-        fontWeight: '500',
-        color: 'white',
-        opacity
-      }
-    }
-  }
+  const eventStyleGetter = (event: AppointmentEvent) => ({
+    style: getEventCardStyle(event.status, event.staffColor, event.blockStart, event.end, view === 'month' ? 0 : event.travelStripPx)
+  })
 
   const handleSelectEvent = async (event: AppointmentEvent) => {
     setSelectedEvent(event)
@@ -408,6 +410,8 @@ export default function CalendarPage() {
       staffId: '',
       scheduledAt: '',
       returnAt: '',
+      travelMinutes: DEFAULT_TRAVEL_MINUTES,
+      returnTravelMinutes: DEFAULT_TRAVEL_MINUTES,
       notes: '',
       estimatedAmount: 0,
       originAddress: '',
@@ -625,6 +629,7 @@ export default function CalendarPage() {
         customerId: formData.customerId,
         staffId: formData.staffId || undefined,
         scheduledAt: new Date(formData.scheduledAt).toISOString(),
+        travelMinutes: formData.travelMinutes || 0,
         originAddress: formData.originAddress,
         destinationAddress: formData.destinationAddress,
         notes: formData.notes,
@@ -717,6 +722,9 @@ export default function CalendarPage() {
         staffId: appointment.staffId || '',
         scheduledAt: duplicate ? '' : moment(appointment.scheduledAt).format('YYYY-MM-DDTHH:mm'),
         returnAt: duplicate ? '' : (appointment.returnAt ? moment(appointment.returnAt).format('YYYY-MM-DDTHH:mm') : ''),
+        // Existing appointments without a saved value keep 0 instead of silently gaining the default
+        travelMinutes: appointment.travelMinutes ?? 0,
+        returnTravelMinutes: appointment.returnTravelMinutes ?? 0,
         notes: appointment.notes || '',
         estimatedAmount: appointment.totalAmount || 0,
         originAddress: appointment.originAddress || '',
@@ -810,6 +818,8 @@ export default function CalendarPage() {
         customerId: formData.customerId,
         scheduledAt: new Date(formData.scheduledAt).toISOString(),
         returnAt: formData.returnAt ? new Date(formData.returnAt).toISOString() : null,
+        travelMinutes: formData.travelMinutes || 0,
+        returnTravelMinutes: formData.tripType === 'DOBLE' ? (formData.returnTravelMinutes || 0) : null,
         originAddress: formData.originAddress,
         originReference: formData.originReference || null,
         destinationAddress: formData.destinationAddress,
@@ -1313,28 +1323,33 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Leyenda de estados */}
+      {/* Leyenda: color por conductor + estados */}
       <div className="flex items-center justify-between mb-3">
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-x-3 gap-y-1">
+          {staff.filter(s => s.color).map(s => (
+            <span key={s.id} className="flex items-center gap-1 text-[10px] text-gray-500">
+              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: s.color }}></span> {s.name}
+            </span>
+          ))}
           <span className="flex items-center gap-1 text-[10px] text-gray-500">
-            <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span> Programada
-          </span>
-          <span className="flex items-center gap-1 text-[10px] text-gray-500">
-            <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span> Completada
+            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: UNASSIGNED_COLOR }}></span> Sin asignar
           </span>
           <span className="flex items-center gap-1 text-[10px] text-gray-500">
             <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span> Cancelada
+          </span>
+          <span className="flex items-center gap-1 text-[10px] text-gray-500">
+            <Check className="w-2.5 h-2.5 text-green-700" strokeWidth={3} /> Completada
           </span>
         </div>
         <p className="text-[10px] text-gray-400">Clic en horario para nueva cita</p>
       </div>
 
       {/* Calendario */}
-      <div className="bg-white border border-gray-100 rounded overflow-hidden" style={{ height: '600px' }}>
+      <div className={`calendar-grid bg-white border border-gray-100 rounded ${view === 'week' ? 'calendar-grid--week' : 'overflow-hidden'}`} style={{ height: 'max(600px, calc(100vh - 220px))' }}>
         <Calendar
             localizer={localizer}
             events={events}
-            startAccessor="start"
+            startAccessor="blockStart"
             endAccessor="end"
             style={{ height: '100%' }}
             view={view}
@@ -1342,6 +1357,12 @@ export default function CalendarPage() {
             date={date}
             onNavigate={setDate}
             eventPropGetter={eventStyleGetter}
+            tooltipAccessor={null}
+            components={{
+              event: CompactEventCard,
+              week: { event: TimeGridEventCard },
+              day: { event: TimeGridEventCard }
+            }}
             onSelectEvent={handleSelectEvent}
             onSelectSlot={handleSelectSlot}
             selectable
@@ -1350,7 +1371,7 @@ export default function CalendarPage() {
             step={15}
             timeslots={4}
             toolbar={false}
-            min={moment().hour(6).minute(0).toDate()}
+            min={moment().hour(DAY_START_HOUR).minute(0).toDate()}
             max={moment().hour(22).minute(0).toDate()}
             messages={{
               next: "Siguiente",
@@ -1867,6 +1888,26 @@ export default function CalendarPage() {
                 />
               </div>
 
+              <div>
+                <Label htmlFor="travelMinutes">
+                  {formData.tripType === 'DOBLE' ? 'Tiempo de desplazamiento a la recogida (min)' : 'Tiempo de desplazamiento (min)'}
+                </Label>
+                <Input
+                  id="travelMinutes"
+                  type="number"
+                  min={0}
+                  max={600}
+                  step={5}
+                  value={formData.travelMinutes}
+                  onChange={(e) => setFormData({...formData, travelMinutes: Math.max(0, parseInt(e.target.value) || 0)})}
+                />
+                <p className="text-[10px] text-gray-500 mt-1">
+                  {formData.scheduledAt && formData.travelMinutes > 0
+                    ? `El vehículo queda ocupado desde las ${moment(formData.scheduledAt).subtract(formData.travelMinutes, 'minutes').format('HH:mm')}. La hora de recogida no cambia.`
+                    : 'Lo que tarda el vehículo en llegar a la recogida. La hora de recogida no cambia.'}
+                </p>
+              </div>
+
               {formData.tripType === 'DOBLE' && (
                 <div>
                   <Label htmlFor="returnAt">Hora de Regreso *</Label>
@@ -1884,6 +1925,22 @@ export default function CalendarPage() {
                     required
                   />
                   <p className="text-[10px] text-gray-500 mt-1">Mismo día, hora de recogida para el regreso</p>
+                </div>
+              )}
+
+              {formData.tripType === 'DOBLE' && (
+                <div>
+                  <Label htmlFor="returnTravelMinutes">Tiempo de desplazamiento al regreso (min)</Label>
+                  <Input
+                    id="returnTravelMinutes"
+                    type="number"
+                    min={0}
+                    max={600}
+                    step={5}
+                    value={formData.returnTravelMinutes}
+                    onChange={(e) => setFormData({...formData, returnTravelMinutes: Math.max(0, parseInt(e.target.value) || 0)})}
+                  />
+                  <p className="text-[10px] text-gray-500 mt-1">Lo que tarda el vehículo en llegar a recoger al cliente para el regreso</p>
                 </div>
               )}
             </div>

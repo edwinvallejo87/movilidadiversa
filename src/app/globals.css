@@ -433,3 +433,63 @@ body {
   font-weight: 500;
   color: #1f2937;
 }
+/* Admin calendar: week/day grid with taller hours and cards that expand on hover */
+.calendar-grid {
+  /* keep the sticky header / hovered-card z-indexes below dialogs */
+  isolation: isolate;
+}
+
+.calendar-grid .rbc-time-view .rbc-event-label {
+  display: none;
+}
+
+/* keep in sync with HOUR_HEIGHT_PX in CalendarEventCard.tsx */
+.calendar-grid .rbc-timeslot-group {
+  min-height: 88px;
+}
+
+.calendar-grid .rbc-time-view .rbc-event:hover {
+  z-index: 50 !important;
+  min-width: 200px !important;
+  /* grow to show the whole card when its time block is shorter than its content;
+     --card-h is the block's own height, set per event in getEventCardStyle */
+  height: auto !important;
+  min-height: var(--card-h, 64px) !important;
+  opacity: 1;
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2);
+}
+
+.calendar-grid .rbc-time-view .rbc-event:hover .rbc-event-content {
+  flex: 0 0 auto;
+  height: auto;
+}
+
+/* Week view: wider day columns; the whole grid scrolls with sticky day header and hour gutter */
+.calendar-grid--week {
+  overflow: auto;
+}
+
+.calendar-grid--week .rbc-calendar {
+  height: auto !important;
+  min-width: 1540px;
+  overflow: visible;
+}
+
+.calendar-grid--week .rbc-time-content {
+  overflow: visible;
+}
+
+.calendar-grid--week .rbc-time-header {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  background: white;
+}
+
+.calendar-grid--week .rbc-time-content > .rbc-time-gutter,
+.calendar-grid--week .rbc-time-header-gutter {
+  position: sticky;
+  left: 0;
+  z-index: 55;
+  background: white;
+}

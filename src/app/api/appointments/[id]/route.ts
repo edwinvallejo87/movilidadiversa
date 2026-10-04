@@ -19,6 +19,8 @@ const FullUpdateAppointmentSchema = z.object({
   staffId: z.string().nullable().optional(),
   scheduledAt: z.string().optional(),
   returnAt: z.string().nullable().optional(),  // Return time for round trips
+  travelMinutes: z.number().int().min(0).max(600).nullable().optional(),
+  returnTravelMinutes: z.number().int().min(0).max(600).nullable().optional(),
   originAddress: z.string().optional(),
   originReference: z.string().nullable().optional(),
   destinationAddress: z.string().optional(),
@@ -176,6 +178,8 @@ export async function PUT(
     if (updateData.staffId !== undefined) dataToUpdate.staffId = updateData.staffId || null
     if (updateData.scheduledAt) dataToUpdate.scheduledAt = new Date(updateData.scheduledAt)
     if (updateData.returnAt !== undefined) dataToUpdate.returnAt = updateData.returnAt ? new Date(updateData.returnAt) : null
+    if (updateData.travelMinutes !== undefined) dataToUpdate.travelMinutes = updateData.travelMinutes
+    if (updateData.returnTravelMinutes !== undefined) dataToUpdate.returnTravelMinutes = updateData.returnTravelMinutes
     if (updateData.originAddress) dataToUpdate.originAddress = updateData.originAddress
     if (updateData.originReference !== undefined) dataToUpdate.originReference = updateData.originReference || null
     if (updateData.destinationAddress) dataToUpdate.destinationAddress = updateData.destinationAddress

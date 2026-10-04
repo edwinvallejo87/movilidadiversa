@@ -12,6 +12,8 @@ const CreateAdminAppointmentSchema = z.object({
   tripType: z.enum(['SENCILLO', 'DOBLE']).optional().default('SENCILLO'),
   scheduledAt: z.string().datetime(),
   returnAt: z.string().datetime().optional().nullable(),  // Return time for round trips
+  travelMinutes: z.number().int().min(0).max(600).optional().nullable(),
+  returnTravelMinutes: z.number().int().min(0).max(600).optional().nullable(),
   originAddress: z.string().optional(),
   originReference: z.string().optional().nullable(),
   destinationAddress: z.string().optional(),
@@ -81,6 +83,8 @@ export async function POST(request: NextRequest) {
         tripType,
         scheduledAt: new Date(appointmentData.scheduledAt),
         returnAt: appointmentData.returnAt ? new Date(appointmentData.returnAt) : null,
+        travelMinutes: appointmentData.travelMinutes ?? null,
+        returnTravelMinutes: appointmentData.returnTravelMinutes ?? null,
         originAddress: appointmentData.originAddress || 'Sin dirección',
         originReference: appointmentData.originReference || null,
         destinationAddress: appointmentData.destinationAddress || 'Sin dirección',
