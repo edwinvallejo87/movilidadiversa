@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireAuth } from '@/lib/api-auth'
 import { z } from 'zod'
 
 const CheckAvailabilitySchema = z.object({
@@ -11,6 +12,9 @@ const CheckAvailabilitySchema = z.object({
 })
 
 export async function GET(request: NextRequest) {
+  const { error } = await requireAuth()
+  if (error) return error
+
   try {
     const { searchParams } = new URL(request.url)
     
