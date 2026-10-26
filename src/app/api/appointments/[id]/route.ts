@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/api-auth'
 import { z } from 'zod'
+import { normalizeTripSchedule } from '@/domain/appointments/tripSchedule'
 
 const UpdateAppointmentSchema = z.object({
   staffId: z.string().cuid().nullable().optional(),
@@ -18,8 +19,8 @@ const UpdateAppointmentSchema = z.object({
 const FullUpdateAppointmentSchema = z.object({
   customerId: z.string().optional(),
   staffId: z.string().nullable().optional(),
-  scheduledAt: z.string().optional(),
-  returnAt: z.string().nullable().optional(),  // Return time for round trips
+  scheduledAt: z.string().datetime().optional(),
+  returnAt: z.string().datetime().nullable().optional(),  // Return time for round trips
   travelMinutes: z.number().int().min(0).max(600).nullable().optional(),
   returnTravelMinutes: z.number().int().min(0).max(600).nullable().optional(),
   originAddress: z.string().optional(),
@@ -179,6 +180,33 @@ export async function PUT(
       )
     }
 
+    const updatesTripSchedule = updateData.tripType !== undefined
+      || updateData.scheduledAt !== undefined
+      || updateData.returnAt !== undefined
+
+    const resultingTripType = updateData.tripType ?? existingAppointment.tripType
+    const resultingScheduledAt = updateData.scheduledAt
+      ? new Date(updateData.scheduledAt)
+      : existingAppointment.scheduledAt
+    const resultingReturnAt = updateData.returnAt !== undefined
+      ? (updateData.returnAt ? new Date(updateData.returnAt) : null)
+      : existingAppointment.returnAt
+    const normalizedSchedule = normalizeTripSchedule({
+      tripType: resultingTripType === 'DOBLE' ? 'DOBLE' : 'SENCILLO',
+      scheduledAt: resultingScheduledAt,
+      returnAt: resultingReturnAt,
+      returnTravelMinutes: updateData.returnTravelMinutes !== undefined
+        ? updateData.returnTravelMinutes
+        : existingAppointment.returnTravelMinutes
+    })
+
+    if (updatesTripSchedule && !normalizedSchedule.valid) {
+      return NextResponse.json(
+        { error: normalizedSchedule.error },
+        { status: 400 }
+      )
+    }
+
     // Build update object
     const dataToUpdate: any = {
       updatedAt: new Date()
@@ -187,9 +215,16 @@ export async function PUT(
     if (updateData.customerId) dataToUpdate.customerId = updateData.customerId
     if (updateData.staffId !== undefined) dataToUpdate.staffId = updateData.staffId || null
     if (updateData.scheduledAt) dataToUpdate.scheduledAt = new Date(updateData.scheduledAt)
-    if (updateData.returnAt !== undefined) dataToUpdate.returnAt = updateData.returnAt ? new Date(updateData.returnAt) : null
+    if (updatesTripSchedule) {
+      dataToUpdate.returnAt = normalizedSchedule.valid ? normalizedSchedule.returnAt : null
+      dataToUpdate.returnTravelMinutes = normalizedSchedule.valid
+        ? normalizedSchedule.returnTravelMinutes
+        : null
+    }
     if (updateData.travelMinutes !== undefined) dataToUpdate.travelMinutes = updateData.travelMinutes
-    if (updateData.returnTravelMinutes !== undefined) dataToUpdate.returnTravelMinutes = updateData.returnTravelMinutes
+    if (!updatesTripSchedule && updateData.returnTravelMinutes !== undefined) {
+      dataToUpdate.returnTravelMinutes = updateData.returnTravelMinutes
+    }
     if (updateData.originAddress) dataToUpdate.originAddress = updateData.originAddress
     if (updateData.originReference !== undefined) dataToUpdate.originReference = updateData.originReference || null
     if (updateData.destinationAddress) dataToUpdate.destinationAddress = updateData.destinationAddress
@@ -198,7 +233,10 @@ export async function PUT(
     if (updateData.estimatedAmount !== undefined) dataToUpdate.totalAmount = updateData.estimatedAmount
     if (updateData.distanceKm !== undefined) dataToUpdate.distanceKm = updateData.distanceKm
     if (updateData.equipmentType) dataToUpdate.equipmentType = updateData.equipmentType
-    if (updateData.tripType) dataToUpdate.tripType = updateData.tripType
+    if (updateData.tripType) {
+      dataToUpdate.tripType = updateData.tripType
+      dataToUpdate.estimatedDuration = updateData.tripType === 'DOBLE' ? 120 : 60
+    }
     if (updateData.status) dataToUpdate.status = updateData.status
     if (updateData.pricingBreakdown) {
       dataToUpdate.pricingSnapshot = JSON.stringify({

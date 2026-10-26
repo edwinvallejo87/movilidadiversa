@@ -19,6 +19,7 @@ import { generateReceiptPDF, ReceiptData } from '@/lib/generate-receipt-pdf'
 import AddressAutocomplete from '@/components/AddressAutocomplete'
 import RouteMap from '@/components/RouteMap'
 import { GoogleMapsProvider } from '@/components/GoogleMapsProvider'
+import { normalizeTripSchedule } from '@/domain/appointments/tripSchedule'
 
 // Configurar moment en español
 moment.locale('es')
@@ -133,6 +134,11 @@ export default function CalendarPage() {
   const [estimatedDuration, setEstimatedDuration] = useState<number | null>(null)
   const [originCoords, setOriginCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [destinationCoords, setDestinationCoords] = useState<{ lat: number; lng: number } | null>(null)
+
+  const invalidateQuote = () => {
+    setPriceOverride(false)
+    setCurrentQuote(null)
+  }
 
   // Zone detection from address
   const detectZoneFromAddress = (address: string): string | null => {
@@ -361,7 +367,7 @@ export default function CalendarPage() {
           totalAmount: apt.totalAmount,
           originAddress: apt.originAddress || '',
           destinationAddress: apt.destinationAddress || '',
-          returnAt: apt.tripType === 'DOBLE' && apt.returnAt ? new Date(apt.returnAt) : null
+          returnAt: apt.returnAt ? new Date(apt.returnAt) : null
         }
       })
 
@@ -482,14 +488,14 @@ export default function CalendarPage() {
     }
   }, [formData.staffId, formData.scheduledAt])
 
-  const calculateQuote = async () => {
+  const calculateQuote = async (): Promise<any | null> => {
     // Check if we have the minimum required data
     if (!formData.zoneSlug || !formData.tripType || !formData.equipmentType) {
       setCurrentQuote(null)
       setCalculatedAmount(0)
       if (!priceOverride) setFormData(prev => ({...prev, estimatedAmount: 0}))
       setRateNotFoundError(null)
-      return
+      return null
     }
 
     // For out-of-city zone, destination is required
@@ -499,7 +505,7 @@ export default function CalendarPage() {
       if (!priceOverride) setFormData(prev => ({...prev, estimatedAmount: 0}))
       setShowQuoteBreakdown(false)
       setRateNotFoundError(null)
-      return
+      return null
     }
 
     // Clear previous error when starting new calculation
@@ -546,6 +552,7 @@ export default function CalendarPage() {
         }
         setShowQuoteBreakdown(true)
         setRateNotFoundError(null)
+        return quote
       } else {
         // Rate not found for this combination
         const errorData = await response.json().catch(() => ({}))
@@ -554,6 +561,7 @@ export default function CalendarPage() {
         if (!priceOverride) setFormData(prev => ({...prev, estimatedAmount: 0}))
         setShowQuoteBreakdown(false)
         setRateNotFoundError(errorData.error || 'Tarifa no encontrada para esta combinación')
+        return null
       }
     } catch (error) {
       // Network or other error
@@ -562,6 +570,7 @@ export default function CalendarPage() {
       if (!priceOverride) setFormData(prev => ({...prev, estimatedAmount: 0}))
       setShowQuoteBreakdown(false)
       setRateNotFoundError('Error al calcular la tarifa')
+      return null
     }
   }
 
@@ -599,66 +608,6 @@ export default function CalendarPage() {
     
     return () => clearTimeout(timeoutId)
   }, [formData.zoneSlug, formData.tripType, formData.equipmentType, formData.originType, formData.distanceKm, formData.outOfCityDestination, formData.extraKm, formData.additionalServices, formData.scheduledAt])
-
-  const handleCreateAppointment = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (!formData.customerId || !formData.scheduledAt) {
-      toast.error('Por favor complete todos los campos obligatorios')
-      return
-    }
-
-    if (!formData.originAddress || !formData.destinationAddress) {
-      toast.error('Por favor ingrese las direcciones de origen y destino')
-      return
-    }
-
-    // Check availability first if staff is assigned
-    if (availabilityStatus && !availabilityStatus.available) {
-      toast.error('El conductor seleccionado no está disponible en ese horario')
-      return
-    }
-
-    try {
-      // Get equipment type from selected staff
-      const selectedStaff = staff.find(s => s.id === formData.staffId)
-      const equipmentType = selectedStaff?.equipmentType || formData.equipmentType
-
-      // Create appointment payload with actual addresses
-      const appointmentPayload = {
-        customerId: formData.customerId,
-        staffId: formData.staffId || undefined,
-        scheduledAt: new Date(formData.scheduledAt).toISOString(),
-        travelMinutes: formData.travelMinutes || 0,
-        originAddress: formData.originAddress,
-        destinationAddress: formData.destinationAddress,
-        notes: formData.notes,
-        estimatedAmount: formData.estimatedAmount,
-        distanceKm: formData.distanceKm || 0,
-        pricingBreakdown: currentQuote?.breakdown || undefined,
-        equipmentType,
-        tripType: formData.tripType || 'SENCILLO'
-      }
-
-      const response = await fetch('/api/admin/appointments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(appointmentPayload)
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Error al crear la cita')
-      }
-
-      toast.success('Cita creada exitosamente')
-      setShowCreateModal(false)
-      resetForm()
-      loadAppointments()
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Error al crear la cita')
-    }
-  }
 
   // Handle opening edit mode - loads data into create form
   // Load appointment data into the form. If `duplicate` is true, clears
@@ -716,6 +665,11 @@ export default function CalendarPage() {
         }
       }
 
+      // Legacy records may have a return time even if tripType was not saved correctly.
+      const effectiveTripType = appointment.tripType === 'DOBLE' || appointment.returnAt
+        ? 'DOBLE'
+        : 'SENCILLO'
+
       // Pre-fill form with appointment data
       setFormData({
         customerId: appointment.customerId || '',
@@ -732,7 +686,7 @@ export default function CalendarPage() {
         destinationAddress: appointment.destinationAddress || '',
         destinationReference: appointment.destinationReference || '',
         zoneSlug: 'medellin', // Will be auto-detected from address
-        tripType: appointment.tripType || 'SENCILLO',
+        tripType: effectiveTripType,
         equipmentType: appointment.equipmentType || 'RAMPA',
         originType: 'MISMO_MUNICIPIO',
         distanceKm: appointment.distanceKm || 0,
@@ -803,6 +757,19 @@ export default function CalendarPage() {
       return
     }
 
+    const scheduledAt = new Date(formData.scheduledAt)
+    const tripSchedule = normalizeTripSchedule({
+      tripType: formData.tripType === 'DOBLE' ? 'DOBLE' : 'SENCILLO',
+      scheduledAt,
+      returnAt: formData.returnAt ? new Date(formData.returnAt) : null,
+      returnTravelMinutes: formData.returnTravelMinutes
+    })
+
+    if (!tripSchedule.valid) {
+      toast.error(tripSchedule.error)
+      return
+    }
+
     // Check availability first if staff is assigned
     if (availabilityStatus && !availabilityStatus.available && !isEditMode) {
       toast.error('El conductor seleccionado no está disponible en ese horario')
@@ -814,20 +781,32 @@ export default function CalendarPage() {
       const selectedStaff = staff.find(s => s.id === formData.staffId)
       const equipmentType = selectedStaff?.equipmentType || formData.equipmentType
 
+      // Recalculate on save so a recent change (for example Sencillo → Doble)
+      // can never persist the previous trip's price.
+      const quoteForSave = priceOverride ? currentQuote : await calculateQuote()
+      const amountForSave = priceOverride
+        ? formData.estimatedAmount
+        : Number(quoteForSave?.totalPrice || 0)
+
+      if (amountForSave <= 0) {
+        toast.error('No hay una tarifa válida para esta configuración. Revísala en Configuración → Tarifas.')
+        return
+      }
+
       const payload: Record<string, unknown> = {
         customerId: formData.customerId,
-        scheduledAt: new Date(formData.scheduledAt).toISOString(),
-        returnAt: formData.returnAt ? new Date(formData.returnAt).toISOString() : null,
+        scheduledAt: scheduledAt.toISOString(),
+        returnAt: tripSchedule.returnAt?.toISOString() || null,
         travelMinutes: formData.travelMinutes || 0,
-        returnTravelMinutes: formData.tripType === 'DOBLE' ? (formData.returnTravelMinutes || 0) : null,
+        returnTravelMinutes: tripSchedule.returnTravelMinutes,
         originAddress: formData.originAddress,
         originReference: formData.originReference || null,
         destinationAddress: formData.destinationAddress,
         destinationReference: formData.destinationReference || null,
         notes: formData.notes,
-        estimatedAmount: formData.estimatedAmount,
+        estimatedAmount: amountForSave,
         distanceKm: formData.distanceKm || 0,
-        pricingBreakdown: currentQuote?.breakdown || undefined,
+        pricingBreakdown: quoteForSave?.breakdown || currentQuote?.breakdown || undefined,
         equipmentType,
         tripType: formData.tripType || 'SENCILLO'
       }
@@ -1027,7 +1006,9 @@ export default function CalendarPage() {
 
   const generateOrderFromAppointment = (appointment: any, serviceNumber?: number) => {
     const customerData = appointment.customer
-    const tripType = appointment.tripType || 'SENCILLO'
+    const tripType = appointment.tripType === 'DOBLE' || appointment.returnAt
+      ? 'DOBLE'
+      : 'SENCILLO'
     const equipmentType = appointment.equipmentType || 'RAMPA'
     const isRobotica = equipmentType === 'ROBOTICA_PLEGABLE' || equipmentType?.toLowerCase().includes('robot')
 
@@ -1426,6 +1407,7 @@ export default function CalendarPage() {
                     customers={customers}
                     value={formData.customerId}
                     onChange={(value, customerFromSearch) => {
+                      invalidateQuote()
                       const selectedCustomer = customerFromSearch || customers.find(c => c.id === value)
 
                       // Keep the customers cache in sync so the selection persists across re-opens
@@ -1498,6 +1480,7 @@ export default function CalendarPage() {
                 staff={staff}
                 value={formData.staffId}
                 onChange={(staffId, equipmentType) => {
+                  invalidateQuote()
                   setFormData({
                     ...formData,
                     staffId: staffId,
@@ -1555,6 +1538,7 @@ export default function CalendarPage() {
                       id="originAddress"
                       value={formData.originAddress}
                       onChange={(value, coords) => {
+                        invalidateQuote()
                         setFormData(prev => ({...prev, originAddress: value}))
                         if (coords) {
                           setOriginCoords(coords)
@@ -1580,6 +1564,7 @@ export default function CalendarPage() {
                       id="destinationAddress"
                       value={formData.destinationAddress}
                       onChange={(value, coords) => {
+                        invalidateQuote()
                         setFormData(prev => ({...prev, destinationAddress: value}))
                         if (coords) {
                           setDestinationCoords(coords)
@@ -1640,7 +1625,10 @@ export default function CalendarPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label htmlFor="zoneSlug">Zona</Label>
-                  <Select value={formData.zoneSlug} onValueChange={(value) => setFormData({...formData, zoneSlug: value})}>
+                  <Select value={formData.zoneSlug} onValueChange={(value) => {
+                    invalidateQuote()
+                    setFormData(prev => ({...prev, zoneSlug: value, estimatedAmount: 0}))
+                  }}>
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar zona" />
                     </SelectTrigger>
@@ -1654,7 +1642,18 @@ export default function CalendarPage() {
 
                 <div>
                   <Label htmlFor="tripType">Tipo de Viaje</Label>
-                  <Select value={formData.tripType} onValueChange={(value) => setFormData({...formData, tripType: value})}>
+                  <Select
+                    value={formData.tripType}
+                    onValueChange={(value) => {
+                      invalidateQuote()
+                      setFormData(prev => ({
+                        ...prev,
+                        tripType: value,
+                        returnAt: value === 'SENCILLO' ? '' : prev.returnAt,
+                        estimatedAmount: 0
+                      }))
+                    }}
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -1668,7 +1667,10 @@ export default function CalendarPage() {
                 {formData.zoneSlug !== 'medellin' && formData.zoneSlug !== 'fuera-ciudad' && (
                   <div className="col-span-2">
                     <Label htmlFor="originType">Tipo de Origen</Label>
-                    <Select value={formData.originType} onValueChange={(value) => setFormData({...formData, originType: value})}>
+                    <Select value={formData.originType} onValueChange={(value) => {
+                      invalidateQuote()
+                      setFormData(prev => ({...prev, originType: value, estimatedAmount: 0}))
+                    }}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -1690,7 +1692,10 @@ export default function CalendarPage() {
                     min="0"
                     step="0.1"
                     value={formData.distanceKm}
-                    onChange={(e) => setFormData({...formData, distanceKm: parseFloat(e.target.value) || 0})}
+                    onChange={(e) => {
+                      invalidateQuote()
+                      setFormData(prev => ({...prev, distanceKm: parseFloat(e.target.value) || 0, estimatedAmount: 0}))
+                    }}
                     placeholder="Ej: 5.2"
                   />
                 </div>
@@ -1700,7 +1705,10 @@ export default function CalendarPage() {
                 <div className="space-y-3">
                   <div>
                     <Label htmlFor="outOfCityDestination">Destino Fuera de Ciudad</Label>
-                    <Select value={formData.outOfCityDestination} onValueChange={(value) => setFormData({...formData, outOfCityDestination: value})}>
+                    <Select value={formData.outOfCityDestination} onValueChange={(value) => {
+                      invalidateQuote()
+                      setFormData(prev => ({...prev, outOfCityDestination: value, estimatedAmount: 0}))
+                    }}>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccionar destino" />
                       </SelectTrigger>
@@ -1720,7 +1728,10 @@ export default function CalendarPage() {
                       min="0"
                       step="0.1"
                       value={formData.extraKm}
-                      onChange={(e) => setFormData({...formData, extraKm: parseFloat(e.target.value) || 0})}
+                      onChange={(e) => {
+                        invalidateQuote()
+                        setFormData(prev => ({...prev, extraKm: parseFloat(e.target.value) || 0, estimatedAmount: 0}))
+                      }}
                       placeholder="0"
                     />
                   </div>
@@ -1736,13 +1747,15 @@ export default function CalendarPage() {
                     value=""
                     onValueChange={(code) => {
                       if (code && !formData.additionalServices.some((s: any) => s.code === code)) {
-                        setFormData({
-                          ...formData,
+                        invalidateQuote()
+                        setFormData(prev => ({
+                          ...prev,
+                          estimatedAmount: 0,
                           additionalServices: [
-                            ...formData.additionalServices,
+                            ...prev.additionalServices,
                             { code, quantity: 1 }
                           ]
-                        })
+                        }))
                       }
                     }}
                   >
@@ -1788,12 +1801,14 @@ export default function CalendarPage() {
                               value={selected.quantity || 1}
                               onChange={(e) => {
                                 const qty = parseInt(e.target.value) || 1
-                                setFormData({
-                                  ...formData,
-                                  additionalServices: formData.additionalServices.map((s: any) =>
+                                invalidateQuote()
+                                setFormData(prev => ({
+                                  ...prev,
+                                  estimatedAmount: 0,
+                                  additionalServices: prev.additionalServices.map((s: any) =>
                                     s.code === selected.code ? { ...s, quantity: qty } : s
                                   )
-                                })
+                                }))
                               }}
                               className="w-14 h-7 text-xs"
                             />
@@ -1801,12 +1816,14 @@ export default function CalendarPage() {
                           <button
                             type="button"
                             onClick={() => {
-                              setFormData({
-                                ...formData,
-                                additionalServices: formData.additionalServices.filter(
+                              invalidateQuote()
+                              setFormData(prev => ({
+                                ...prev,
+                                estimatedAmount: 0,
+                                additionalServices: prev.additionalServices.filter(
                                   (s: any) => s.code !== selected.code
                                 )
-                              })
+                              }))
                             }}
                             className="text-gray-400 hover:text-red-500 p-1"
                           >
@@ -1883,7 +1900,24 @@ export default function CalendarPage() {
                   id="scheduledAt"
                   type="datetime-local"
                   value={formData.scheduledAt}
-                  onChange={(e) => setFormData({...formData, scheduledAt: e.target.value})}
+                  onChange={(e) => {
+                    const scheduledAt = e.target.value
+                    setPriceOverride(false)
+                    setCurrentQuote(null)
+                    setFormData(prev => {
+                      const returnTime = prev.returnAt.split('T')[1]
+                      const scheduledDate = scheduledAt.split('T')[0]
+
+                      return {
+                        ...prev,
+                        scheduledAt,
+                        returnAt: prev.tripType === 'DOBLE' && returnTime && scheduledDate
+                          ? `${scheduledDate}T${returnTime}`
+                          : prev.returnAt,
+                        estimatedAmount: 0
+                      }
+                    })
+                  }}
                   required
                 />
               </div>
@@ -1917,10 +1951,14 @@ export default function CalendarPage() {
                     value={formData.returnAt ? formData.returnAt.split('T')[1]?.substring(0, 5) || '' : ''}
                     onChange={(e) => {
                       // Use same date as scheduledAt but with the new time
-                      const datepart = formData.scheduledAt ? formData.scheduledAt.split('T')[0] : ''
-                      if (datepart && e.target.value) {
-                        setFormData({...formData, returnAt: `${datepart}T${e.target.value}`})
-                      }
+                      const time = e.target.value
+                      setFormData(prev => {
+                        const datepart = prev.scheduledAt.split('T')[0]
+                        return {
+                          ...prev,
+                          returnAt: datepart && time ? `${datepart}T${time}` : ''
+                        }
+                      })
                     }}
                     required
                   />

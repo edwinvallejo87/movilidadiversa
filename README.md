@@ -30,8 +30,14 @@ Sistema de agendamiento de servicios de movilidad para personas con discapacidad
 
 ## 🛠️ Instalación
 
-1. **Instalar dependencias**
+### Requisitos
+
+- Node.js 24.22.1 LTS (consulta `.nvmrc`)
+- npm 11.19.1 o compatible
+
+1. **Activar la versión de Node e instalar dependencias**
    ```bash
+   nvm use
    npm install
    ```
 

@@ -8,9 +8,11 @@ Sistema de gestión de transporte especializado para personas con movilidad redu
 
 | Tecnología | Versión | Uso |
 |------------|---------|-----|
-| Next.js | 16.0.10 | Framework React con App Router |
+| Node.js | 24.22.1 LTS | Runtime de servidor y build |
+| Next.js | 16.4.3 | Framework React con App Router |
+| React | 19.3.1 | Interfaz de usuario |
 | TypeScript | 5.x | Tipado estático |
-| Prisma | 5.20.0 | ORM para base de datos |
+| Prisma | 5.22.0 | ORM para base de datos |
 | PostgreSQL | - | Base de datos (Neon) |
 | Tailwind CSS | 3.x | Estilos |
 | shadcn/ui | - | Componentes UI |

@@ -4,11 +4,11 @@ import { requireAuth } from '@/lib/api-auth'
 import { z } from 'zod'
 
 const CreateDestinationSchema = z.object({
-  name: z.string().min(1, 'Nombre es requerido'),
-  tripType: z.string().min(1, 'Tipo de viaje es requerido'),
+  name: z.string().trim().min(1, 'Nombre es requerido'),
+  tripType: z.enum(['SENCILLO', 'DOBLE']),
   equipmentType: z.string().min(1, 'Tipo de equipo es requerido'),
-  originType: z.string().optional().nullable(),
-  price: z.number().min(0, 'Precio debe ser mayor o igual a 0'),
+  originType: z.enum(['DESDE_MEDELLIN', 'MISMA_CIUDAD']).optional().nullable(),
+  price: z.number().int().min(0, 'Precio debe ser mayor o igual a 0'),
 })
 
 export async function GET() {
@@ -47,6 +47,22 @@ export async function POST(request: NextRequest) {
       )
     }
     const data = parsed.data
+
+    const duplicate = await prisma.outOfCityDestination.findFirst({
+      where: {
+        name: data.name,
+        tripType: data.tripType,
+        equipmentType: data.equipmentType,
+        originType: data.originType || null
+      }
+    })
+
+    if (duplicate) {
+      return NextResponse.json(
+        { error: 'Ya existe una tarifa para esa ruta, tipo de viaje, equipo y origen' },
+        { status: 409 }
+      )
+    }
 
     const destination = await prisma.outOfCityDestination.create({
       data: {

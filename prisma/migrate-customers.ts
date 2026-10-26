@@ -1,10 +1,10 @@
 import { PrismaClient } from '@prisma/client'
-import * as XLSX from 'xlsx'
+import { readSheet } from 'read-excel-file/node'
 
 const prisma = new PrismaClient()
 
 // Parse age from strings like "96 años" or numbers
-function parseAge(value: any): number | null {
+function parseAge(value: unknown): number | null {
   if (!value) return null
   if (typeof value === 'number') return value
   const match = String(value).match(/(\d+)/)
@@ -12,7 +12,7 @@ function parseAge(value: any): number | null {
 }
 
 // Parse weight from strings like "56 kg" or numbers
-function parseWeight(value: any): number | null {
+function parseWeight(value: unknown): number | null {
   if (!value) return null
   if (typeof value === 'number') return value
   const match = String(value).match(/(\d+(?:\.\d+)?)/)
@@ -22,9 +22,7 @@ function parseWeight(value: any): number | null {
 async function main() {
   console.log('Leyendo archivo Excel...')
 
-  const workbook = XLSX.readFile('data/Base de datos (1).xlsx')
-  const sheet = workbook.Sheets[workbook.SheetNames[0]]
-  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][]
+  const rows = await readSheet('data/Base de datos (1).xlsx')
 
   console.log(`Total filas en Excel: ${rows.length}`)
 

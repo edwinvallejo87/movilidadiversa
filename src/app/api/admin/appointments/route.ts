@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/api-auth'
+import { normalizeTripSchedule } from '@/domain/appointments/tripSchedule'
 
 const CreateAdminAppointmentSchema = z.object({
   customerId: z.string().min(1),
@@ -71,6 +72,21 @@ export async function POST(request: NextRequest) {
     // Get equipment type from staff or use provided/default
     const equipmentType = staffMember?.equipmentType || appointmentData.equipmentType || 'RAMPA'
     const tripType = appointmentData.tripType || 'SENCILLO'
+    const scheduledAt = new Date(appointmentData.scheduledAt)
+    const returnAt = appointmentData.returnAt ? new Date(appointmentData.returnAt) : null
+    const normalizedSchedule = normalizeTripSchedule({
+      tripType,
+      scheduledAt,
+      returnAt,
+      returnTravelMinutes: appointmentData.returnTravelMinutes
+    })
+
+    if (!normalizedSchedule.valid) {
+      return NextResponse.json(
+        { error: normalizedSchedule.error },
+        { status: 400 }
+      )
+    }
 
     // Crear la cita
     const appointment = await db.appointment.create({
@@ -81,10 +97,10 @@ export async function POST(request: NextRequest) {
         resourceId: appointmentData.resourceId,
         equipmentType,
         tripType,
-        scheduledAt: new Date(appointmentData.scheduledAt),
-        returnAt: appointmentData.returnAt ? new Date(appointmentData.returnAt) : null,
+        scheduledAt,
+        returnAt: normalizedSchedule.returnAt,
         travelMinutes: appointmentData.travelMinutes ?? null,
-        returnTravelMinutes: appointmentData.returnTravelMinutes ?? null,
+        returnTravelMinutes: normalizedSchedule.returnTravelMinutes,
         originAddress: appointmentData.originAddress || 'Sin dirección',
         originReference: appointmentData.originReference || null,
         destinationAddress: appointmentData.destinationAddress || 'Sin dirección',

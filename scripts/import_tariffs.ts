@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx'
+import { readSheet, type Row } from 'read-excel-file/node'
 import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
@@ -29,6 +29,44 @@ interface ImportLog {
   }
 }
 
+function parseTariffRows(rows: Row[]): ExcelTariffRow[] {
+  const [headerRow, ...dataRows] = rows
+  if (!headerRow) return []
+
+  const columnIndexes = new Map(
+    headerRow.map((value, index) => [String(value ?? '').trim().toLowerCase(), index])
+  )
+
+  const getValue = (row: Row, column: string) => {
+    const index = columnIndexes.get(column)
+    return index === undefined ? null : row[index]
+  }
+  const getString = (row: Row, column: string) => {
+    const value = getValue(row, column)
+    return value === null || value === undefined ? undefined : String(value)
+  }
+  const getNumber = (row: Row, column: string) => {
+    const value = getValue(row, column)
+    if (value === null || value === undefined || value === '') return undefined
+    const parsed = typeof value === 'number' ? value : Number(value)
+    return Number.isFinite(parsed) ? parsed : undefined
+  }
+
+  return dataRows.map(row => ({
+    servicio: getString(row, 'servicio'),
+    origen: getString(row, 'origen'),
+    destino: getString(row, 'destino'),
+    tipo_ruta: getString(row, 'tipo_ruta'),
+    modo_precio: getString(row, 'modo_precio'),
+    precio_fijo: getNumber(row, 'precio_fijo'),
+    precio_por_km: getNumber(row, 'precio_por_km'),
+    precio_minimo: getNumber(row, 'precio_minimo'),
+    min_km: getNumber(row, 'min_km'),
+    max_km: getNumber(row, 'max_km'),
+    precio_tier: getNumber(row, 'precio_tier')
+  }))
+}
+
 export async function importTariffsFromExcel(filePath: string): Promise<ImportLog> {
   const log: ImportLog = {
     errors: [],
@@ -43,10 +81,8 @@ export async function importTariffsFromExcel(filePath: string): Promise<ImportLo
   }
 
   try {
-    const workbook = XLSX.readFile(filePath)
-    const sheetName = workbook.SheetNames[0]
-    const worksheet = workbook.Sheets[sheetName]
-    const data = XLSX.utils.sheet_to_json(worksheet) as ExcelTariffRow[]
+    const rows = await readSheet(filePath)
+    const data = parseTariffRows(rows)
 
     console.log(`Procesando ${data.length} filas del archivo Excel...`)
 

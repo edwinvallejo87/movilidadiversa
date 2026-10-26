@@ -156,14 +156,17 @@ export async function POST(request: NextRequest) {
 
     // CASE 1: Out of city destination
     if (zoneSlug === 'fuera-ciudad' && outOfCityDestination) {
-      // For out-of-city, always use DESDE_MEDELLIN as that's how rates are defined
+      const outOfCityOriginType = originType === 'MISMO_MUNICIPIO'
+        ? 'MISMA_CIUDAD'
+        : (originType || 'DESDE_MEDELLIN')
+
       // Try exact equipment type first, then fallback to RAMPA base rate
       let destination = await prisma.outOfCityDestination.findFirst({
         where: {
           name: outOfCityDestination,
           tripType: tripType,
           equipmentType: equipmentType,
-          originType: 'DESDE_MEDELLIN'
+          originType: outOfCityOriginType
         }
       })
       if (!destination && equipmentType !== 'RAMPA') {
@@ -172,7 +175,7 @@ export async function POST(request: NextRequest) {
             name: outOfCityDestination,
             tripType: tripType,
             equipmentType: 'RAMPA',
-            originType: 'DESDE_MEDELLIN'
+            originType: outOfCityOriginType
           }
         })
       }
@@ -211,11 +214,10 @@ export async function POST(request: NextRequest) {
           totalPrice += extraKmCost
         }
       } else {
-        breakdown.push({
-          item: `${tripType === 'SENCILLO' ? 'Viaje sencillo' : 'Viaje doble'} a ${outOfCityDestination} (tarifa pendiente)`,
-          unitPrice: 0,
-          subtotal: 0
-        })
+        return NextResponse.json(
+          { error: `No hay tarifa configurada para ${outOfCityDestination}, ${tripType === 'SENCILLO' ? 'viaje sencillo' : 'ida y regreso'}` },
+          { status: 404 }
+        )
       }
     }
     // CASE 2: Medellin (distance-based)
@@ -249,11 +251,10 @@ export async function POST(request: NextRequest) {
         })
         totalPrice += rate.price
       } else {
-        breakdown.push({
-          item: `${tripType === 'SENCILLO' ? 'Viaje sencillo' : 'Viaje doble'} ${getEquipLabel(equipmentType)} ${distanceLabel} (tarifa pendiente)`,
-          unitPrice: 0,
-          subtotal: 0
-        })
+        return NextResponse.json(
+          { error: `No hay tarifa configurada para ${tripType === 'SENCILLO' ? 'viaje sencillo' : 'ida y regreso'}, ${getEquipLabel(equipmentType)} ${distanceLabel}` },
+          { status: 404 }
+        )
       }
     }
     // CASE 3: Other metropolitan zones (origin-based)
@@ -278,11 +279,10 @@ export async function POST(request: NextRequest) {
         })
         totalPrice += rate.price
       } else {
-        breakdown.push({
-          item: `${tripType === 'SENCILLO' ? 'Viaje sencillo' : 'Viaje doble'} ${getEquipLabel(equipmentType)} (${originLabel}) (tarifa pendiente)`,
-          unitPrice: 0,
-          subtotal: 0
-        })
+        return NextResponse.json(
+          { error: `No hay tarifa configurada para ${tripType === 'SENCILLO' ? 'viaje sencillo' : 'ida y regreso'}, ${getEquipLabel(equipmentType)} (${originLabel})` },
+          { status: 404 }
+        )
       }
     }
 
