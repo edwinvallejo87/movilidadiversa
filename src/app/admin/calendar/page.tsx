@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Calendar, momentLocalizer, Event, View } from 'react-big-calendar'
 import moment from 'moment'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
@@ -129,6 +129,9 @@ export default function CalendarPage() {
   const [createdAppointmentId, setCreatedAppointmentId] = useState<string | null>(null)
   const [createdAppointmentData, setCreatedAppointmentData] = useState<any>(null)
   const [isDownloadingReceipt, setIsDownloadingReceipt] = useState(false)
+  const [isSavingAppointment, setIsSavingAppointment] = useState(false)
+  const appointmentSubmitLock = useRef(false)
+  const receiptOpenTimeout = useRef<number | null>(null)
 
   // Route calculation (handled by Google Maps RouteMap component)
   const [estimatedDuration, setEstimatedDuration] = useState<number | null>(null)
@@ -139,6 +142,14 @@ export default function CalendarPage() {
     setPriceOverride(false)
     setCurrentQuote(null)
   }
+
+  useEffect(() => {
+    return () => {
+      if (receiptOpenTimeout.current !== null) {
+        window.clearTimeout(receiptOpenTimeout.current)
+      }
+    }
+  }, [])
 
   // Zone detection from address
   const detectZoneFromAddress = (address: string): string | null => {
@@ -736,6 +747,8 @@ export default function CalendarPage() {
   const handleSubmitAppointment = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    if (appointmentSubmitLock.current) return
+
     // Validación con mensajes específicos
     if (!formData.customerId) {
       toast.error('Debe seleccionar un cliente')
@@ -775,6 +788,10 @@ export default function CalendarPage() {
       toast.error('El conductor seleccionado no está disponible en ese horario')
       return
     }
+
+    const wasEditMode = isEditMode
+    appointmentSubmitLock.current = true
+    setIsSavingAppointment(true)
 
     try {
       // Get equipment type from selected staff
@@ -839,22 +856,31 @@ export default function CalendarPage() {
         throw new Error(result.error || 'Error al guardar')
       }
 
-      toast.success(isEditMode ? 'Cita actualizada' : 'Cita creada')
+      toast.success(wasEditMode ? 'Cita actualizada' : 'Cita creada')
       setShowCreateModal(false)
-
-      // Show receipt download option only for new appointments
-      if (!isEditMode && result.id) {
-        setCreatedAppointmentId(result.id)
-        setCreatedAppointmentData(result)
-        setShowReceiptModal(true)
-      }
 
       setIsEditMode(false)
       setEditingAppointmentId(null)
       resetForm()
-      loadAppointments()
+      await loadAppointments()
+
+      // Radix keeps the closing dialog mounted for its 200 ms exit animation.
+      // Opening the receipt dialog in the same render can leave two focus scopes
+      // active and intermittently crash the client. Let the first dialog finish
+      // closing before mounting the next one.
+      if (!wasEditMode && result.id) {
+        receiptOpenTimeout.current = window.setTimeout(() => {
+          setCreatedAppointmentId(result.id)
+          setCreatedAppointmentData(result)
+          setShowReceiptModal(true)
+          receiptOpenTimeout.current = null
+        }, 250)
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Error al guardar')
+    } finally {
+      appointmentSubmitLock.current = false
+      setIsSavingAppointment(false)
     }
   }
 
@@ -2042,8 +2068,10 @@ export default function CalendarPage() {
               <Button type="button" variant="ghost" size="sm" onClick={() => setShowCreateModal(false)}>
                 Cancelar
               </Button>
-              <Button type="submit" size="sm">
-                {isEditMode ? 'Guardar Cambios' : 'Crear Cita'}
+              <Button type="submit" size="sm" disabled={isSavingAppointment}>
+                {isSavingAppointment
+                  ? 'Guardando...'
+                  : isEditMode ? 'Guardar Cambios' : 'Crear Cita'}
               </Button>
             </div>
           </form>
