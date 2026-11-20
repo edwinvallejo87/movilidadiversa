@@ -11,6 +11,9 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Movilidad Diversa - Transporte Inclusivo",
   description: "Servicios especializados de transporte para personas con movilidad reducida. Reserva fácil, precios transparentes, atención profesional en Medellín.",
+  // Chrome's automatic translation rewrites text nodes React owns, which makes
+  // React crash on the next update ("removeChild"/"insertBefore" NotFoundError).
+  other: { google: "notranslate" },
 };
 
 export default function RootLayout({
@@ -19,7 +22,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="es" translate="no" suppressHydrationWarning>
       <body
         className={`${inter.variable} antialiased`}
         suppressHydrationWarning

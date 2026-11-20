@@ -12,6 +12,12 @@ export default function AdminError({ error }: {
     console.error('Admin page error:', error)
   }, [error])
 
+  const detail = [
+    error?.name && error.name !== 'Error' ? error.name : null,
+    error?.message || null,
+    error?.digest ? `ref: ${error.digest}` : null,
+  ].filter(Boolean).join(' · ')
+
   return (
     <div className="flex min-h-[60vh] items-center justify-center p-6">
       <div className="w-full max-w-md rounded-lg border border-red-100 bg-white p-6 text-center shadow-sm">
@@ -25,6 +31,11 @@ export default function AdminError({ error }: {
           <RefreshCw className="mr-2 h-3.5 w-3.5" />
           Recargar y verificar
         </Button>
+        {detail && (
+          <p className="mt-4 break-words text-left font-mono text-[11px] text-gray-400">
+            Detalle técnico: {detail}
+          </p>
+        )}
       </div>
     </div>
   )
